@@ -840,969 +840,917 @@
         </div>
     </div>
 
-    <script>
-        const STORAGE_KEY = 'pokerTrackerData';
-        const SESSION_STATUS_KEY = 'pokerSessionStatus';
-        const SESSION_SETTINGS_KEY = 'pokerSessionSettings';
-        const SETTLEMENT_HISTORY_KEY = 'pokerSettlementHistory';
-        const AUTH_KEY = 'pokerTrackerAuth';
-        
-        // All available players
-        const ALL_PLAYERS = ['Leo', 'SY', 'VW', 'ZL', 'Juv', 'Jack', 'Other Player 1', 'Other Player 2', 'Other Player 3', 'Other Player 4'];
-        
-        // CHANGE THIS PASSWORD!
-        const APP_PASSWORD = 'welovepoker';
-        
-        window.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
+# Complete Cloud-Sync JavaScript Functions
+
+Copy your `poker-tracker-enhanced-final.html` file and replace the JavaScript section with this complete cloud-sync version.
+
+## IMPORTANT: Before You Start
+
+1. Set up Google Sheets backend first (follow GOOGLE_SHEETS_SETUP_GUIDE.md)
+2. Get your Web App URL from Google Apps Script deployment
+3. Replace `YOUR_GOOGLE_SHEETS_WEB_APP_URL_HERE` below with your actual URL
+
+---
+
+## Complete JavaScript Section
+
+Replace everything between `<script>` and `</script>` tags with this:
+
+```javascript
+const AUTH_KEY = 'pokerTrackerAuth';
+
+// GOOGLE SHEETS BACKEND URL - REPLACE THIS!
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx3z-KSqevTrHtr2AeOqqIxA0uFG8yjDZpcPe7UVuJDJRqOZYH8CQ01ClLW85RfuAqSbg/exec';
+
+// All available players - CUSTOMIZE THIS!
+const ALL_PLAYERS = ['Leo', 'SY', 'VW', 'ZL', 'Juv', 'Jack', 'Other1', 'Other2', 'Other3', 'Other4'];
+
+// App password - CHANGE THIS!
+const APP_PASSWORD = 'welovepoker';
+
+// Store current session data in memory
+let currentSessionData = null;
+
+// ============================================
+// API HELPER FUNCTION
+// ============================================
+async function callBackendAPI(action, data = {}) {
+    try {
+        const response = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain',
+            },
+            body: JSON.stringify({
+                action: action,
+                ...data
+            })
         });
         
-        function checkAuth() {
-            const isAuthenticated = sessionStorage.getItem(AUTH_KEY);
-            if (isAuthenticated === 'true') {
-                showApp();
-            } else {
-                showLogin();
-            }
-        }
+        const text = await response.text();
+        const result = JSON.parse(text);
+        return result;
+    } catch (error) {
+        console.error('Backend API error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================
+// AUTHENTICATION
+// ============================================
+window.addEventListener('DOMContentLoaded', function() {
+    checkAuth();
+});
+
+function checkAuth() {
+    const isAuthenticated = sessionStorage.getItem(AUTH_KEY);
+    if (isAuthenticated === 'true') {
+        showApp();
+    } else {
+        showLogin();
+    }
+}
+
+function handleLogin() {
+    const password = document.getElementById('passwordInput').value;
+    const errorDiv = document.getElementById('loginError');
+    
+    if (password === APP_PASSWORD) {
+        sessionStorage.setItem(AUTH_KEY, 'true');
+        showApp();
+    } else {
+        errorDiv.textContent = '❌ Incorrect password. Please try again.';
+        errorDiv.style.display = 'block';
+        document.getElementById('passwordInput').value = '';
+        document.getElementById('passwordInput').focus();
         
-        function handleLogin() {
-            const password = document.getElementById('passwordInput').value;
-            const errorDiv = document.getElementById('loginError');
-            
-            if (password === APP_PASSWORD) {
-                sessionStorage.setItem(AUTH_KEY, 'true');
-                showApp();
-            } else {
-                errorDiv.textContent = '❌ Incorrect password. Please try again.';
-                errorDiv.style.display = 'block';
-                document.getElementById('passwordInput').value = '';
-                document.getElementById('passwordInput').focus();
-                
-                setTimeout(() => {
-                    errorDiv.style.display = 'none';
-                }, 3000);
-            }
-            return false;
-        }
-        
-        function handleLogout() {
-            if (confirm('Are you sure you want to logout?')) {
-                sessionStorage.removeItem(AUTH_KEY);
-                showLogin();
-            }
-        }
-        
-        function showLogin() {
-            document.getElementById('loginScreen').style.display = 'block';
-            document.getElementById('appContainer').style.display = 'none';
-            document.getElementById('passwordInput').value = '';
-            document.getElementById('passwordInput').focus();
-        }
-        
-        function showApp() {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('appContainer').style.display = 'block';
-            initializeApp();
-        }
-        
-        document.getElementById('passwordInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                handleLogin();
+        setTimeout(() => {
+            errorDiv.style.display = 'none';
+        }, 3000);
+    }
+    return false;
+}
+
+function handleLogout() {
+    if (confirm('Are you sure you want to logout?')) {
+        sessionStorage.removeItem(AUTH_KEY);
+        showLogin();
+    }
+}
+
+function showLogin() {
+    document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('appContainer').style.display = 'none';
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordInput').focus();
+}
+
+function showApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'block';
+    initializeApp();
+}
+
+document.getElementById('passwordInput')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        handleLogin();
+    }
+});
+
+// ============================================
+// APP INITIALIZATION
+// ============================================
+async function initializeApp() {
+    await loadSessions();
+    await loadSessionSettings();
+    updateCalculations();
+    updateSessionStatus();
+    
+    document.querySelectorAll('input[id^="chip"]').forEach(input => {
+        input.addEventListener('input', updateCalculations);
+    });
+    
+    document.getElementById('startingCapital').addEventListener('input', updateCalculations);
+    document.getElementById('settlementFactor').addEventListener('input', updateCalculations);
+    document.getElementById('submitBtn').addEventListener('click', submitChips);
+    document.getElementById('createSessionBtn').addEventListener('click', showCreateSessionModal);
+    document.getElementById('sessionStatusBtn').addEventListener('click', showSessionStatus);
+    document.getElementById('closeSessionBtn').addEventListener('click', closeSession);
+    document.getElementById('viewHistoryBtn').addEventListener('click', viewHistory);
+    document.getElementById('exportExcelBtn')?.addEventListener('click', exportToExcel);
+    document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
+    document.getElementById('sessionSelect').addEventListener('change', async function() {
+        updateSessionStatus();
+        await loadSessionSettings();
+        loadPlayerDropdown();
+        updateCalculations();
+    });
+    
+    document.getElementById('closeCreateModal').addEventListener('click', () => closeModal('createSessionModal'));
+    document.getElementById('closeStatusModal').addEventListener('click', () => closeModal('sessionStatusModal'));
+    document.getElementById('closeSettlementModal').addEventListener('click', () => closeModal('settlementModal'));
+    document.getElementById('closeHistoryModal').addEventListener('click', () => closeModal('historyModal'));
+    
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal(this.id);
             }
         });
+    });
+
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('newSessionDate').value = today;
+    
+    loadPlayerDropdown();
+}
+
+// ============================================
+// SESSION MANAGEMENT
+// ============================================
+async function loadSessions() {
+    const select = document.getElementById('sessionSelect');
+    select.innerHTML = '<option value="">Loading sessions...</option>';
+    
+    const result = await callBackendAPI('getAllSessions');
+    
+    select.innerHTML = '';
+    
+    if (result.success && result.sessions && result.sessions.length > 0) {
+        const sortedSessions = result.sessions.sort((a, b) => 
+            new Date(b.date) - new Date(a.date)
+        );
         
-        function initializeApp() {
-            loadSessions();
-            loadSessionSettings();
-            updateCalculations();
-            updateSessionStatus();
-            
-            document.querySelectorAll('input[id^="chip"]').forEach(input => {
-                input.addEventListener('input', updateCalculations);
-            });
-            
-            document.getElementById('startingCapital').addEventListener('input', function() {
-                updateCalculations();
-                saveSessionSettings();
-            });
-            document.getElementById('settlementFactor').addEventListener('input', function() {
-                updateCalculations();
-                saveSessionSettings();
-            });
-            document.getElementById('submitBtn').addEventListener('click', submitChips);
-            document.getElementById('createSessionBtn').addEventListener('click', showCreateSessionModal);
-            document.getElementById('sessionStatusBtn').addEventListener('click', showSessionStatus);
-            document.getElementById('closeSessionBtn').addEventListener('click', closeSession);
-            document.getElementById('viewHistoryBtn').addEventListener('click', viewHistory);
-            document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
-            document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
-            document.getElementById('sessionSelect').addEventListener('change', function() {
-                updateSessionStatus();
-                loadSessionSettings();
-                loadPlayerDropdown();
-                updateCalculations();
-            });
-            
-            document.getElementById('closeCreateModal').addEventListener('click', () => closeModal('createSessionModal'));
-            document.getElementById('closeStatusModal').addEventListener('click', () => closeModal('sessionStatusModal'));
-            document.getElementById('closeSettlementModal').addEventListener('click', () => closeModal('settlementModal'));
-            document.getElementById('closeHistoryModal').addEventListener('click', () => closeModal('historyModal'));
-            
-            document.querySelectorAll('.modal').forEach(modal => {
-                modal.addEventListener('click', function(e) {
-                    if (e.target === this) {
-                        closeModal(this.id);
-                    }
-                });
-            });
+        sortedSessions.forEach(session => {
+            const opt = document.createElement('option');
+            opt.value = session.date;
+            const statusIcon = session.status === 'closed' ? '🔒' : '🟢';
+            opt.textContent = `${statusIcon} ${session.date} (${session.players.length} players)`;
+            select.appendChild(opt);
+        });
+    } else {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No sessions yet - Create one';
+        select.appendChild(option);
+    }
+}
 
-            // Set today's date in create session modal
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('newSessionDate').value = today;
-            
-            loadPlayerDropdown();
-        }
-
-        function showCreateSessionModal() {
-            const grid = document.getElementById('playerCheckboxGrid');
-            grid.innerHTML = '';
-            
-            ALL_PLAYERS.forEach(player => {
-                const div = document.createElement('div');
-                div.className = 'player-checkbox';
-                div.innerHTML = `
-                    <input type="checkbox" id="player_${player}" value="${player}">
-                    <label for="player_${player}" style="cursor: pointer; flex: 1;">${player}</label>
-                `;
-                div.onclick = function(e) {
-                    if (e.target.tagName !== 'INPUT') {
-                        const checkbox = div.querySelector('input');
-                        checkbox.checked = !checkbox.checked;
-                        div.classList.toggle('checked', checkbox.checked);
-                    } else {
-                        div.classList.toggle('checked', e.target.checked);
-                    }
-                };
-                grid.appendChild(div);
-            });
-            
-            document.getElementById('createSessionModal').style.display = 'block';
-        }
-
-        function confirmCreateSession() {
-            const date = document.getElementById('newSessionDate').value;
-            const startingCapital = parseFloat(document.getElementById('sessionStartingCapital').value);
-            const settlementFactor = parseFloat(document.getElementById('sessionSettlementFactor').value);
-            
-            const selectedPlayers = [];
-            ALL_PLAYERS.forEach(player => {
-                const checkbox = document.getElementById(`player_${player}`);
-                if (checkbox && checkbox.checked) {
-                    selectedPlayers.push(player);
-                }
-            });
-            
-            if (!date) {
-                showMessage('Please select a date', 'error');
-                return;
-            }
-            
-            if (selectedPlayers.length < 2) {
-                showMessage('Please select at least 2 players', 'error');
-                return;
-            }
-            
-            const settings = getSessionSettings();
-            settings[date] = {
-                startingCapital: startingCapital,
-                settlementFactor: settlementFactor,
-                players: selectedPlayers,
-                created: new Date().toISOString()
-            };
-            
-            localStorage.setItem(SESSION_SETTINGS_KEY, JSON.stringify(settings));
-            
-            closeModal('createSessionModal');
-            loadSessions();
-            
-            // Select the new session
-            document.getElementById('sessionSelect').value = date;
-            loadSessionSettings();
-            loadPlayerDropdown();
-            updateSessionStatus();
-            
-            showMessage(`Session created for ${date} with ${selectedPlayers.length} players`, 'success');
-        }
-
-        function loadSessions() {
-            const select = document.getElementById('sessionSelect');
-            select.innerHTML = '';
-            
-            const settings = getSessionSettings();
-            const data = getStoredData();
-            const sessions = new Set();
-            
-            // Get sessions from settings
-            Object.keys(settings).forEach(date => sessions.add(date));
-            
-            // Get sessions from data
-            data.forEach(entry => sessions.add(entry.session));
-            
-            // Sort sessions by date (newest first)
-            const sortedSessions = Array.from(sessions).sort().reverse();
-            
-            if (sortedSessions.length === 0) {
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = 'No sessions yet - Create one';
-                select.appendChild(option);
+function showCreateSessionModal() {
+    const grid = document.getElementById('playerCheckboxGrid');
+    grid.innerHTML = '';
+    
+    ALL_PLAYERS.forEach(player => {
+        const div = document.createElement('div');
+        div.className = 'player-checkbox';
+        div.innerHTML = `
+            <input type="checkbox" id="player_${player}" value="${player}">
+            <label for="player_${player}" style="cursor: pointer; flex: 1;">${player}</label>
+        `;
+        div.onclick = function(e) {
+            if (e.target.tagName !== 'INPUT') {
+                const checkbox = div.querySelector('input');
+                checkbox.checked = !checkbox.checked;
+                div.classList.toggle('checked', checkbox.checked);
             } else {
-                sortedSessions.forEach(session => {
-                    const opt = document.createElement('option');
-                    opt.value = session;
-                    
-                    const sessionInfo = settings[session];
-                    const playerCount = sessionInfo ? sessionInfo.players.length : '?';
-                    opt.textContent = `${session} (${playerCount} players)`;
-                    
-                    select.appendChild(opt);
-                });
+                div.classList.toggle('checked', e.target.checked);
             }
-        }
+        };
+        grid.appendChild(div);
+    });
+    
+    document.getElementById('createSessionModal').style.display = 'block';
+}
 
-        function loadPlayerDropdown() {
-            const session = document.getElementById('sessionSelect').value;
-            const settings = getSessionSettings();
-            const playerSelect = document.getElementById('playerName');
-            
-            playerSelect.innerHTML = '<option value="">Select your name...</option>';
-            
-            if (settings[session] && settings[session].players) {
-                settings[session].players.forEach(player => {
-                    const option = document.createElement('option');
-                    option.value = player;
-                    option.textContent = player;
-                    playerSelect.appendChild(option);
-                });
-            }
+async function confirmCreateSession() {
+    const date = document.getElementById('newSessionDate').value;
+    const startingCapital = parseFloat(document.getElementById('sessionStartingCapital').value);
+    const settlementFactor = parseFloat(document.getElementById('sessionSettlementFactor').value);
+    
+    const selectedPlayers = [];
+    ALL_PLAYERS.forEach(player => {
+        const checkbox = document.getElementById(`player_${player}`);
+        if (checkbox && checkbox.checked) {
+            selectedPlayers.push(player);
         }
+    });
+    
+    if (!date) {
+        showMessage('Please select a date', 'error');
+        return;
+    }
+    
+    if (selectedPlayers.length < 2) {
+        showMessage('Please select at least 2 players', 'error');
+        return;
+    }
+    
+    showMessage('Creating session...', 'warning');
+    
+    const result = await callBackendAPI('createSession', {
+        sessionDate: date,
+        startingCapital: startingCapital,
+        settlementFactor: settlementFactor,
+        players: selectedPlayers
+    });
+    
+    if (result.success) {
+        closeModal('createSessionModal');
+        await loadSessions();
+        
+        document.getElementById('sessionSelect').value = date;
+        await loadSessionSettings();
+        loadPlayerDropdown();
+        updateSessionStatus();
+        
+        showMessage(`Session created for ${date} with ${selectedPlayers.length} players`, 'success');
+    } else {
+        showMessage(`Error: ${result.error || 'Failed to create session'}`, 'error');
+    }
+}
 
-        function saveSessionSettings() {
-            const session = document.getElementById('sessionSelect').value;
-            if (!session) return;
-            
-            const settings = getSessionSettings();
-            
-            const sessionStatus = getSessionStatus();
-            if (sessionStatus[session] && sessionStatus[session].closed) {
-                return;
-            }
-            
-            const data = getStoredData();
-            const hasSubmissions = data.some(e => e.session === session);
-            
-            if (hasSubmissions) {
-                return;
-            }
-            
-            if (settings[session]) {
-                settings[session].startingCapital = parseFloat(document.getElementById('startingCapital').value) || 250;
-                settings[session].settlementFactor = parseFloat(document.getElementById('settlementFactor').value) || 0.2;
-                localStorage.setItem(SESSION_SETTINGS_KEY, JSON.stringify(settings));
-            }
-        }
+async function loadSessionSettings() {
+    const session = document.getElementById('sessionSelect').value;
+    if (!session) return;
+    
+    const result = await callBackendAPI('getSession', { sessionDate: session });
+    
+    const configSection = document.getElementById('configSection');
+    const startingCapitalInput = document.getElementById('startingCapital');
+    const settlementFactorInput = document.getElementById('settlementFactor');
+    const sessionInfoBanner = document.getElementById('sessionInfoBanner');
+    
+    if (result.success && result.session) {
+        currentSessionData = result.session;
+        startingCapitalInput.value = result.session.startingCapital;
+        settlementFactorInput.value = result.session.settlementFactor;
+        
+        const isClosed = result.session.status === 'closed';
+        
+        startingCapitalInput.disabled = true;
+        settlementFactorInput.disabled = true;
+        configSection.classList.add('locked');
+        sessionInfoBanner.style.display = 'block';
+        
+        const playerCount = result.session.players.length;
+        const statusText = isClosed ? 'CLOSED' : 'Active';
+        sessionInfoBanner.textContent = `🔒 Session locked (${playerCount} players, Start: $${result.session.startingCapital}, Factor: ${result.session.settlementFactor}) - ${statusText}`;
+    } else {
+        startingCapitalInput.value = 250;
+        settlementFactorInput.value = 0.2;
+        startingCapitalInput.disabled = false;
+        settlementFactorInput.disabled = false;
+        configSection.classList.remove('locked');
+        sessionInfoBanner.style.display = 'none';
+    }
+}
 
-        function loadSessionSettings() {
-            const session = document.getElementById('sessionSelect').value;
-            if (!session) return;
-            
-            const settings = getSessionSettings();
-            const data = getStoredData();
-            const hasSubmissions = data.some(e => e.session === session);
-            
-            const sessionStatus = getSessionStatus();
-            const isClosed = sessionStatus[session] && sessionStatus[session].closed;
-            
-            const configSection = document.getElementById('configSection');
-            const startingCapitalInput = document.getElementById('startingCapital');
-            const settlementFactorInput = document.getElementById('settlementFactor');
-            const sessionInfoBanner = document.getElementById('sessionInfoBanner');
-            
-            if (settings[session]) {
-                startingCapitalInput.value = settings[session].startingCapital;
-                settlementFactorInput.value = settings[session].settlementFactor;
-            } else {
-                startingCapitalInput.value = 250;
-                settlementFactorInput.value = 0.2;
-            }
-            
-            if (hasSubmissions || isClosed) {
-                startingCapitalInput.disabled = true;
-                settlementFactorInput.disabled = true;
-                configSection.classList.add('locked');
-                sessionInfoBanner.style.display = 'block';
-                
-                const playerCount = settings[session] ? settings[session].players.length : '?';
-                sessionInfoBanner.textContent = `🔒 Session locked (${playerCount} players, Start: $${startingCapitalInput.value}, Factor: ${settlementFactorInput.value})`;
-            } else {
-                startingCapitalInput.disabled = false;
-                settlementFactorInput.disabled = false;
-                configSection.classList.remove('locked');
-                sessionInfoBanner.style.display = 'none';
-            }
-        }
+function loadPlayerDropdown() {
+    const playerSelect = document.getElementById('playerName');
+    playerSelect.innerHTML = '<option value="">Select your name...</option>';
+    
+    if (currentSessionData && currentSessionData.players) {
+        currentSessionData.players.forEach(player => {
+            const option = document.createElement('option');
+            option.value = player;
+            option.textContent = player;
+            playerSelect.appendChild(option);
+        });
+    }
+}
 
-        function updateCalculations() {
-            const chip1 = parseInt(document.getElementById('chip1').value) || 0;
-            const chip2 = parseInt(document.getElementById('chip2').value) || 0;
-            const chip5 = parseInt(document.getElementById('chip5').value) || 0;
-            const chip10 = parseInt(document.getElementById('chip10').value) || 0;
-            const chip20 = parseInt(document.getElementById('chip20').value) || 0;
-            
-            const startingCapital = parseFloat(document.getElementById('startingCapital').value) || 250;
-            const settlementFactor = parseFloat(document.getElementById('settlementFactor').value) || 0.2;
-            
-            const currentTotal = (chip1 * 1) + (chip2 * 2) + (chip5 * 5) + (chip10 * 10) + (chip20 * 20);
-            const profitLoss = currentTotal - startingCapital;
-            const settlement = profitLoss * settlementFactor;
-            
-            document.getElementById('displayStarting').textContent = `$${startingCapital.toFixed(2)}`;
-            document.getElementById('currentTotal').textContent = `$${currentTotal.toFixed(2)}`;
-            document.getElementById('profitLoss').textContent = `${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}`;
-            document.getElementById('settlementAmount').textContent = `${settlement >= 0 ? '+' : ''}$${settlement.toFixed(2)}`;
-            
-            const plElement = document.getElementById('profitLoss');
-            const settlementElement = document.getElementById('settlementAmount');
-            
-            if (profitLoss >= 0) {
-                plElement.classList.remove('negative');
-                settlementElement.classList.remove('negative');
-            } else {
-                plElement.classList.add('negative');
-                settlementElement.classList.add('negative');
-            }
-        }
+// ============================================
+// CHIP SUBMISSION
+// ============================================
+function updateCalculations() {
+    const chip1 = parseInt(document.getElementById('chip1').value) || 0;
+    const chip2 = parseInt(document.getElementById('chip2').value) || 0;
+    const chip5 = parseInt(document.getElementById('chip5').value) || 0;
+    const chip10 = parseInt(document.getElementById('chip10').value) || 0;
+    const chip20 = parseInt(document.getElementById('chip20').value) || 0;
+    
+    const startingCapital = parseFloat(document.getElementById('startingCapital').value) || 250;
+    const settlementFactor = parseFloat(document.getElementById('settlementFactor').value) || 0.2;
+    
+    const currentTotal = (chip1 * 1) + (chip2 * 2) + (chip5 * 5) + (chip10 * 10) + (chip20 * 20);
+    const profitLoss = currentTotal - startingCapital;
+    const settlement = profitLoss * settlementFactor;
+    
+    document.getElementById('displayStarting').textContent = `$${startingCapital.toFixed(2)}`;
+    document.getElementById('currentTotal').textContent = `$${currentTotal.toFixed(2)}`;
+    document.getElementById('profitLoss').textContent = `${profitLoss >= 0 ? '+' : ''}$${profitLoss.toFixed(2)}`;
+    document.getElementById('settlementAmount').textContent = `${settlement >= 0 ? '+' : ''}$${settlement.toFixed(2)}`;
+    
+    const plElement = document.getElementById('profitLoss');
+    const settlementElement = document.getElementById('settlementAmount');
+    
+    if (profitLoss >= 0) {
+        plElement.classList.remove('negative');
+        settlementElement.classList.remove('negative');
+    } else {
+        plElement.classList.add('negative');
+        settlementElement.classList.add('negative');
+    }
+}
 
-        function updateSessionStatus() {
-            const session = document.getElementById('sessionSelect').value;
-            const sessionStatus = getSessionStatus();
-            const banner = document.getElementById('sessionStatusBanner');
-            const submitBtn = document.getElementById('submitBtn');
-            const closeBtn = document.getElementById('closeSessionBtn');
-            
-            if (sessionStatus[session] && sessionStatus[session].closed) {
-                banner.textContent = 'Session Closed - No more submissions allowed';
-                banner.className = 'session-status closed';
-                submitBtn.disabled = true;
-                closeBtn.disabled = true;
-            } else {
-                banner.textContent = 'Session Open - Players can submit chips';
-                banner.className = 'session-status';
-                submitBtn.disabled = false;
-                closeBtn.disabled = false;
-            }
-        }
+async function submitChips() {
+    const playerName = document.getElementById('playerName').value;
+    const session = document.getElementById('sessionSelect').value;
+    
+    if (!playerName || !session) {
+        showMessage('Please select player name and session', 'error');
+        return;
+    }
+    
+    const chip1 = parseInt(document.getElementById('chip1').value) || 0;
+    const chip2 = parseInt(document.getElementById('chip2').value) || 0;
+    const chip5 = parseInt(document.getElementById('chip5').value) || 0;
+    const chip10 = parseInt(document.getElementById('chip10').value) || 0;
+    const chip20 = parseInt(document.getElementById('chip20').value) || 0;
+    const startingCapital = parseFloat(document.getElementById('startingCapital').value) || 250;
+    const settlementFactor = parseFloat(document.getElementById('settlementFactor').value) || 0.2;
+    
+    showMessage('Submitting chips...', 'warning');
+    
+    const result = await callBackendAPI('submitChips', {
+        sessionDate: session,
+        playerName: playerName,
+        chips: {
+            chip1: chip1,
+            chip2: chip2,
+            chip5: chip5,
+            chip10: chip10,
+            chip20: chip20
+        },
+        startingCapital: startingCapital,
+        settlementFactor: settlementFactor
+    });
+    
+    if (result.success) {
+        const settlement = result.submission.settlementAmount;
+        showMessage(`Chips submitted! Settlement: ${settlement >= 0 ? '+' : ''}$${settlement.toFixed(2)}`, 'success');
+        
+        document.getElementById('chip1').value = 0;
+        document.getElementById('chip2').value = 0;
+        document.getElementById('chip5').value = 0;
+        document.getElementById('chip10').value = 0;
+        document.getElementById('chip20').value = 0;
+        
+        updateCalculations();
+    } else {
+        showMessage(`Error: ${result.error || 'Failed to submit'}`, 'error');
+    }
+}
 
-        function submitChips() {
-            const playerName = document.getElementById('playerName').value;
-            const session = document.getElementById('sessionSelect').value;
-            
-            if (!playerName || !session) {
-                showMessage('Please select player name and session', 'error');
-                return;
-            }
-            
-            const sessionStatus = getSessionStatus();
-            if (sessionStatus[session] && sessionStatus[session].closed) {
-                showMessage('This session is closed. Cannot submit chips.', 'error');
-                return;
-            }
-            
-            const chip1 = parseInt(document.getElementById('chip1').value) || 0;
-            const chip2 = parseInt(document.getElementById('chip2').value) || 0;
-            const chip5 = parseInt(document.getElementById('chip5').value) || 0;
-            const chip10 = parseInt(document.getElementById('chip10').value) || 0;
-            const chip20 = parseInt(document.getElementById('chip20').value) || 0;
-            const startingCapital = parseFloat(document.getElementById('startingCapital').value) || 250;
-            const settlementFactor = parseFloat(document.getElementById('settlementFactor').value) || 0.2;
-            
-            const currentTotal = (chip1 * 1) + (chip2 * 2) + (chip5 * 5) + (chip10 * 10) + (chip20 * 20);
-            const profitLoss = currentTotal - startingCapital;
-            const settlement = profitLoss * settlementFactor;
-            
-            const entry = {
-                timestamp: new Date().toISOString(),
-                session: session,
-                playerName: playerName,
-                chip1: chip1,
-                chip2: chip2,
-                chip5: chip5,
-                chip10: chip10,
-                chip20: chip20,
-                startingCapital: startingCapital,
-                currentTotal: currentTotal,
-                profitLoss: profitLoss,
-                settlementFactor: settlementFactor,
-                settlementAmount: settlement
-            };
-            
-            const data = getStoredData();
-            data.push(entry);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            
-            saveSessionSettings();
-            loadSessionSettings();
-            
-            showMessage(`Chips submitted! Settlement: ${settlement >= 0 ? '+' : ''}$${settlement.toFixed(2)}`, 'success');
-            
-            document.getElementById('chip1').value = 0;
-            document.getElementById('chip2').value = 0;
-            document.getElementById('chip5').value = 0;
-            document.getElementById('chip10').value = 0;
-            document.getElementById('chip20').value = 0;
-            
-            updateCalculations();
-        }
+// ============================================
+// SESSION STATUS
+// ============================================
+function updateSessionStatus() {
+    const session = document.getElementById('sessionSelect').value;
+    const banner = document.getElementById('sessionStatusBanner');
+    const submitBtn = document.getElementById('submitBtn');
+    const closeBtn = document.getElementById('closeSessionBtn');
+    
+    if (currentSessionData && currentSessionData.status === 'closed') {
+        banner.textContent = 'Session Closed - No more submissions allowed';
+        banner.className = 'session-status closed';
+        submitBtn.disabled = true;
+        closeBtn.disabled = true;
+    } else {
+        banner.textContent = 'Session Open - Players can submit chips';
+        banner.className = 'session-status';
+        submitBtn.disabled = false;
+        closeBtn.disabled = false;
+    }
+}
 
-        function showSessionStatus() {
-            const session = document.getElementById('sessionSelect').value;
-            if (!session) {
-                showMessage('Please select a session', 'error');
-                return;
-            }
-            
-            const data = getStoredData();
-            const sessionData = data.filter(e => e.session === session);
-            const settings = getSessionSettings();
-            const sessionSettings = settings[session];
-            
-            if (!sessionSettings) {
-                showMessage('Session not configured. Please create session first.', 'error');
-                return;
-            }
-            
-            const expectedPlayers = sessionSettings.players;
-            const sessionStartingCapital = sessionSettings.startingCapital;
-            const sessionFactor = sessionSettings.settlementFactor;
-            
-            const playerSubmissions = {};
-            sessionData.forEach(entry => {
-                if (!playerSubmissions[entry.playerName]) {
-                    playerSubmissions[entry.playerName] = [];
-                }
-                playerSubmissions[entry.playerName].push(entry);
-            });
-            
-            const submittedPlayers = Object.keys(playerSubmissions);
-            const missingPlayers = expectedPlayers.filter(p => !submittedPlayers.includes(p));
-            
-            let html = `<div style="background: #e6fffa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #81e6d9;">`;
-            html += `<strong>Session Settings:</strong><br>`;
-            html += `Players: ${expectedPlayers.length} | Starting Capital: $${sessionStartingCapital} | Settlement Factor: ${sessionFactor}`;
-            html += `</div>`;
-            
-            html += `<div class="validation-list">`;
-            html += `<h3 style="margin-bottom: 15px;">Validation Checklist</h3>`;
-            
-            html += `<div class="validation-item">`;
-            html += `<span class="validation-icon">${expectedPlayers.length >= 2 ? '✅' : '❌'}</span>`;
-            html += `<span>Expected players: ${expectedPlayers.length}</span>`;
-            html += `</div>`;
-            
-            html += `<div class="validation-item">`;
-            if (submittedPlayers.length === expectedPlayers.length) {
-                html += `<span class="validation-icon">✅</span>`;
-                html += `<span>All ${expectedPlayers.length} players submitted</span>`;
-            } else {
-                html += `<span class="validation-icon">❌</span>`;
-                html += `<span>Only ${submittedPlayers.length} of ${expectedPlayers.length} players submitted</span>`;
-            }
-            html += `</div>`;
-            
-            const totalSettlement = sessionData.reduce((sum, e) => sum + e.settlementAmount, 0);
-            const isBalanced = Math.abs(totalSettlement) < 0.01;
-            
-            html += `<div class="validation-item">`;
-            if (isBalanced) {
-                html += `<span class="validation-icon">✅</span>`;
-                html += `<span>Settlements balanced (sum: $${totalSettlement.toFixed(2)})</span>`;
-            } else {
-                html += `<span class="validation-icon">⚠️</span>`;
-                html += `<span>Settlements not balanced! Total: $${totalSettlement.toFixed(2)} (should be $0.00)</span>`;
-            }
-            html += `</div>`;
-            
-            // Check total chips
-            const totalChips = sessionData.reduce((sum, e) => sum + e.currentTotal, 0);
-            const expectedTotalChips = submittedPlayers.length * sessionStartingCapital;
-            const chipDifference = Math.abs(totalChips - expectedTotalChips);
-            
-            html += `<div class="validation-item">`;
-            if (chipDifference < 0.01) {
-                html += `<span class="validation-icon">✅</span>`;
-                html += `<span>Total chips correct ($${totalChips.toFixed(2)})</span>`;
-            } else {
-                html += `<span class="validation-icon">⚠️</span>`;
-                html += `<span>Chip count off by $${chipDifference.toFixed(2)}! (Got: $${totalChips.toFixed(2)}, Expected: $${expectedTotalChips.toFixed(2)})</span>`;
-            }
-            html += `</div>`;
-            
-            html += `</div>`;
-            
-            html += `<h3 style="margin: 20px 0 15px 0;">Player Status</h3>`;
-            html += `<div class="player-status-grid">`;
-            
-            expectedPlayers.forEach(player => {
-                const submitted = playerSubmissions[player];
-                if (submitted) {
-                    const latest = submitted[submitted.length - 1];
-                    html += `
-                        <div class="player-status-card submitted">
-                            <div class="player-name">${player} ✓</div>
-                            <div class="player-amount ${latest.settlementAmount >= 0 ? 'profit-loss' : 'profit-loss negative'}">
-                                ${latest.settlementAmount >= 0 ? '+' : ''}$${latest.settlementAmount.toFixed(2)}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    html += `
-                        <div class="player-status-card">
-                            <div class="player-name">${player}</div>
-                            <div style="color: #a0aec0; font-weight: 600;">Not submitted</div>
-                        </div>
-                    `;
-                }
-            });
-            
-            html += `</div>`;
-            
-            if (missingPlayers.length > 0) {
-                html += `<div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; color: #92400e;">`;
-                html += `<strong>⚠️ Missing Submissions:</strong><br>`;
-                html += missingPlayers.join(', ');
-                html += `</div>`;
-            }
-            
-            const canClose = submittedPlayers.length === expectedPlayers.length && isBalanced;
-            if (canClose) {
-                html += `<div style="margin-top: 20px; padding: 15px; background: #c6f6d5; border-radius: 8px; color: #22543d;">`;
-                html += `<strong>✅ Ready to close session and generate settlement instructions!</strong>`;
-                html += `</div>`;
-            }
-            
-            document.getElementById('sessionStatusContent').innerHTML = html;
-            document.getElementById('sessionStatusModal').style.display = 'block';
-        }
-
-        function closeSession() {
-            const session = document.getElementById('sessionSelect').value;
-            if (!session) {
-                showMessage('Please select a session', 'error');
-                return;
-            }
-            
-            const data = getStoredData();
-            const sessionData = data.filter(e => e.session === session);
-            const settings = getSessionSettings();
-            const sessionSettings = settings[session];
-            
-            if (!sessionSettings) {
-                showMessage('Session not configured', 'error');
-                return;
-            }
-            
-            const expectedPlayers = sessionSettings.players;
-            const playerSubmissions = {};
-            sessionData.forEach(entry => {
-                playerSubmissions[entry.playerName] = entry;
-            });
-            
-            const submittedPlayers = Object.keys(playerSubmissions);
-            
-            if (submittedPlayers.length !== expectedPlayers.length) {
-                showMessage(`Need all ${expectedPlayers.length} players to submit. Currently ${submittedPlayers.length} submitted.`, 'error');
-                return;
-            }
-            
-            const totalSettlement = sessionData.reduce((sum, e) => sum + e.settlementAmount, 0);
-            
-            if (Math.abs(totalSettlement) >= 0.01) {
-                showMessage(`Settlements don't balance! Total: $${totalSettlement.toFixed(2)} (should be $0.00)`, 'error');
-                return;
-            }
-            
-            if (!confirm('Close this session? No more chips can be submitted after closing.')) {
-                return;
-            }
-            
-            const sessionStatus = getSessionStatus();
-            sessionStatus[session] = {
-                closed: true,
-                closedAt: new Date().toISOString()
-            };
-            localStorage.setItem(SESSION_STATUS_KEY, JSON.stringify(sessionStatus));
-            
-            // Save settlement results
-            saveSettlementResults(session, playerSubmissions);
-            
-            updateSessionStatus();
-            loadSessionSettings();
-            generateSettlement(session, playerSubmissions);
-        }
-
-        function saveSettlementResults(session, playerSubmissions) {
-            const history = getSettlementHistory();
-            
-            if (!history[session]) {
-                history[session] = {
-                    date: session,
-                    closedAt: new Date().toISOString(),
-                    players: {}
-                };
-            }
-            
-            Object.entries(playerSubmissions).forEach(([playerName, data]) => {
-                history[session].players[playerName] = {
-                    startingCapital: data.startingCapital,
-                    finalChips: data.currentTotal,
-                    profitLoss: data.profitLoss,
-                    settlementAmount: data.settlementAmount,
-                    settlementFactor: data.settlementFactor
-                };
-            });
-            
-            localStorage.setItem(SETTLEMENT_HISTORY_KEY, JSON.stringify(history));
-        }
-
-        function generateSettlement(session, playerSubmissions) {
-            const players = Object.entries(playerSubmissions).map(([name, data]) => ({
-                name: name,
-                amount: data.settlementAmount
-            }));
-            
-            players.sort((a, b) => b.amount - a.amount);
-            
-            const topWinner = players[0];
-            const winners = players.filter(p => p.amount > 0);
-            const losers = players.filter(p => p.amount < 0);
-            
-            let html = '';
-            
-            if (topWinner.amount > 0) {
-                html += `<div class="top-winner-badge">`;
-                html += `👑 TOP WINNER: ${topWinner.name}`;
-                html += `</div>`;
-            }
-            
-            html += `<div class="settlement-section">`;
-            html += `<div class="settlement-title">💰 Settlement Instructions</div>`;
-            
-            if (losers.length > 0) {
-                html += `<h3 style="margin: 15px 0 10px 0; color: #2d3748;">For Losing Players:</h3>`;
-                html += `<div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; color: #4a5568;">`;
-                html += `Losing players transfer their loss amount to ${topWinner.name}`;
-                html += `</div>`;
-                
-                losers.forEach(loser => {
-                    html += `<div class="payment-instruction">`;
-                    html += `<div class="payment-from">${loser.name}</div>`;
-                    html += `<div class="payment-detail">Transfer to ${topWinner.name}</div>`;
-                    html += `<div class="payment-amount">$${Math.abs(loser.amount).toFixed(2)}</div>`;
-                    html += `</div>`;
-                });
-            }
-            
-            if (winners.length > 1) {
-                html += `<h3 style="margin: 20px 0 10px 0; color: #2d3748;">For Top Winner (${topWinner.name}):</h3>`;
-                html += `<div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; color: #4a5568;">`;
-                html += `You collect from losers and pay other winners`;
-                html += `</div>`;
-                
-                winners.slice(1).forEach(winner => {
-                    html += `<div class="payment-instruction">`;
-                    html += `<div class="payment-from">Pay ${winner.name}</div>`;
-                    html += `<div class="payment-detail">From collected funds</div>`;
-                    html += `<div class="payment-amount">$${winner.amount.toFixed(2)}</div>`;
-                    html += `</div>`;
-                });
-            }
-            
-            html += `</div>`;
-            
-            html += `<div style="margin-top: 20px;">`;
-            html += `<h3 style="margin-bottom: 10px;">Final Results:</h3>`;
-            html += `<div class="player-status-grid">`;
-            players.forEach(player => {
-                html += `<div class="player-status-card">`;
-                html += `<div class="player-name">${player.name}</div>`;
-                html += `<div class="player-amount ${player.amount >= 0 ? 'profit-loss' : 'profit-loss negative'}">`;
-                html += `${player.amount >= 0 ? '+' : ''}$${player.amount.toFixed(2)}`;
-                html += `</div>`;
-                html += `</div>`;
-            });
-            html += `</div>`;
-            
-            const totalWinnings = winners.reduce((sum, p) => sum + p.amount, 0);
-            const totalLosses = Math.abs(losers.reduce((sum, p) => sum + p.amount, 0));
-            html += `<div style="margin-top: 15px; padding: 15px; background: #e6fffa; border-radius: 8px;">`;
-            html += `<strong>Session:</strong> ${session}<br>`;
-            html += `<strong>Total Winnings:</strong> $${totalWinnings.toFixed(2)}<br>`;
-            html += `<strong>Total Losses:</strong> $${totalLosses.toFixed(2)}<br>`;
-            html += `<strong>Top Winner Collects:</strong> $${totalLosses.toFixed(2)}<br>`;
-            html += `<strong>Top Winner Pays Out:</strong> $${(totalWinnings - topWinner.amount).toFixed(2)}`;
-            html += `</div>`;
-            
-            html += `</div>`;
-            
-            document.getElementById('settlementContent').innerHTML = html;
-            document.getElementById('settlementModal').style.display = 'block';
-        }
-
-        function viewHistory() {
-            const history = getSettlementHistory();
-            
-            if (Object.keys(history).length === 0) {
-                showMessage('No settlement history available yet', 'error');
-                return;
-            }
-            
-            // Aggregate player statistics
-            const playerStats = {};
-            
-            Object.entries(history).forEach(([session, sessionData]) => {
-                Object.entries(sessionData.players).forEach(([playerName, playerData]) => {
-                    if (!playerStats[playerName]) {
-                        playerStats[playerName] = {
-                            sessions: 0,
-                            totalSettlement: 0,
-                            totalProfitLoss: 0,
-                            sessionDetails: []
-                        };
-                    }
-                    
-                    playerStats[playerName].sessions++;
-                    playerStats[playerName].totalSettlement += playerData.settlementAmount;
-                    playerStats[playerName].totalProfitLoss += playerData.profitLoss;
-                    playerStats[playerName].sessionDetails.push({
-                        session: session,
-                        settlement: playerData.settlementAmount,
-                        profitLoss: playerData.profitLoss,
-                        finalChips: playerData.finalChips
-                    });
-                });
-            });
-            
-            let html = '<h3 style="margin-bottom: 15px;">Overall Statistics</h3>';
-            html += '<div class="stats-grid">';
-            
-            Object.entries(playerStats).forEach(([player, stats]) => {
-                const avgSettlement = stats.totalSettlement / stats.sessions;
-                html += `
-                    <div class="stat-card">
-                        <div class="stat-label">${player}</div>
-                        <div class="stat-value ${stats.totalSettlement >= 0 ? 'profit-loss' : 'profit-loss negative'}">
-                            ${stats.totalSettlement >= 0 ? '+' : ''}$${stats.totalSettlement.toFixed(0)}
-                        </div>
-                        <div style="margin-top: 10px; font-size: 13px; color: #4a5568;">
-                            ${stats.sessions} sessions<br>
-                            Avg: ${avgSettlement >= 0 ? '+' : ''}$${avgSettlement.toFixed(0)} per session
-                        </div>
+async function showSessionStatus() {
+    const session = document.getElementById('sessionSelect').value;
+    if (!session) {
+        showMessage('Please select a session', 'error');
+        return;
+    }
+    
+    showMessage('Loading session status...', 'warning');
+    
+    const result = await callBackendAPI('getSessionStatus', {
+        sessionDate: session
+    });
+    
+    if (!result.success) {
+        showMessage(`Error: ${result.error}`, 'error');
+        return;
+    }
+    
+    const sessionData = result.session;
+    const submissions = result.submissions || [];
+    
+    const expectedPlayers = sessionData.players;
+    const sessionStartingCapital = sessionData.startingCapital;
+    const sessionFactor = sessionData.settlementFactor;
+    
+    const playerSubmissions = {};
+    submissions.forEach(sub => {
+        playerSubmissions[sub.playerName] = sub;
+    });
+    
+    const submittedPlayers = Object.keys(playerSubmissions);
+    const missingPlayers = expectedPlayers.filter(p => !submittedPlayers.includes(p));
+    
+    let html = `<div style="background: #e6fffa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #81e6d9;">`;
+    html += `<strong>Session Settings:</strong><br>`;
+    html += `Players: ${expectedPlayers.length} | Starting Capital: $${sessionStartingCapital} | Settlement Factor: ${sessionFactor}`;
+    html += `</div>`;
+    
+    html += `<div class="validation-list">`;
+    html += `<h3 style="margin-bottom: 15px;">Validation Checklist</h3>`;
+    
+    html += `<div class="validation-item">`;
+    html += `<span class="validation-icon">${expectedPlayers.length >= 2 ? '✅' : '❌'}</span>`;
+    html += `<span>Expected players: ${expectedPlayers.length}</span>`;
+    html += `</div>`;
+    
+    html += `<div class="validation-item">`;
+    if (submittedPlayers.length === expectedPlayers.length) {
+        html += `<span class="validation-icon">✅</span>`;
+        html += `<span>All ${expectedPlayers.length} players submitted</span>`;
+    } else {
+        html += `<span class="validation-icon">❌</span>`;
+        html += `<span>Only ${submittedPlayers.length} of ${expectedPlayers.length} players submitted</span>`;
+    }
+    html += `</div>`;
+    
+    const totalSettlement = submissions.reduce((sum, s) => sum + s.settlementAmount, 0);
+    const isBalanced = Math.abs(totalSettlement) < 0.01;
+    
+    html += `<div class="validation-item">`;
+    if (isBalanced) {
+        html += `<span class="validation-icon">✅</span>`;
+        html += `<span>Settlements balanced (sum: $${totalSettlement.toFixed(2)})</span>`;
+    } else {
+        html += `<span class="validation-icon">⚠️</span>`;
+        html += `<span>Settlements not balanced! Total: $${totalSettlement.toFixed(2)} (should be $0.00)</span>`;
+    }
+    html += `</div>`;
+    
+    html += `</div>`;
+    
+    html += `<h3 style="margin: 20px 0 15px 0;">Player Status (Live)</h3>`;
+    html += `<div class="player-status-grid">`;
+    
+    expectedPlayers.forEach(player => {
+        const submitted = playerSubmissions[player];
+        if (submitted) {
+            html += `
+                <div class="player-status-card submitted">
+                    <div class="player-name">${player} ✓</div>
+                    <div class="player-amount ${submitted.settlementAmount >= 0 ? 'profit-loss' : 'profit-loss negative'}">
+                        ${submitted.settlementAmount >= 0 ? '+' : ''}$${submitted.settlementAmount.toFixed(2)}
                     </div>
-                `;
-            });
-            
-            html += '</div>';
-            
-            html += '<h3 style="margin: 30px 0 15px 0;">Detailed History</h3>';
-            
-            Object.entries(playerStats).forEach(([player, stats]) => {
-                html += `<h4 style="margin: 20px 0 10px 0; color: #2d3748;">${player}</h4>`;
-                html += `<table class="history-table">`;
-                html += `<thead><tr><th>Session</th><th>Final Chips</th><th>P/L</th><th>Settlement</th></tr></thead>`;
-                html += `<tbody>`;
-                
-                stats.sessionDetails.reverse().forEach(detail => {
-                    html += `<tr>`;
-                    html += `<td>${detail.session}</td>`;
-                    html += `<td>$${detail.finalChips.toFixed(2)}</td>`;
-                    html += `<td class="${detail.profitLoss >= 0 ? 'profit-loss' : 'profit-loss negative'}">${detail.profitLoss >= 0 ? '+' : ''}$${detail.profitLoss.toFixed(2)}</td>`;
-                    html += `<td class="${detail.settlement >= 0 ? 'profit-loss' : 'profit-loss negative'}">${detail.settlement >= 0 ? '+' : ''}$${detail.settlement.toFixed(2)}</td>`;
-                    html += `</tr>`;
-                });
-                
-                html += `</tbody></table>`;
-            });
-            
-            document.getElementById('historyContent').innerHTML = html;
-            document.getElementById('historyModal').style.display = 'block';
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="player-status-card">
+                    <div class="player-name">${player}</div>
+                    <div style="color: #a0aec0; font-weight: 600;">Not submitted</div>
+                </div>
+            `;
         }
+    });
+    
+    html += `</div>`;
+    
+    if (missingPlayers.length > 0) {
+        html += `<div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; color: #92400e;">`;
+        html += `<strong>⚠️ Missing Submissions:</strong><br>`;
+        html += missingPlayers.join(', ');
+        html += `</div>`;
+    }
+    
+    const canClose = submittedPlayers.length === expectedPlayers.length && isBalanced;
+    if (canClose) {
+        html += `<div style="margin-top: 20px; padding: 15px; background: #c6f6d5; border-radius: 8px; color: #22543d;">`;
+        html += `<strong>✅ Ready to close session and generate settlement instructions!</strong>`;
+        html += `</div>`;
+    }
+    
+    document.getElementById('sessionStatusContent').innerHTML = html;
+    document.getElementById('sessionStatusModal').style.display = 'block';
+}
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
+// ============================================
+// CLOSE SESSION
+// ============================================
+async function closeSession() {
+    const session = document.getElementById('sessionSelect').value;
+    if (!session) {
+        showMessage('Please select a session', 'error');
+        return;
+    }
+    
+    if (!confirm('Close this session? No more chips can be submitted after closing.')) {
+        return;
+    }
+    
+    showMessage('Closing session...', 'warning');
+    
+    const result = await callBackendAPI('closeSession', {
+        sessionDate: session
+    });
+    
+    if (result.success) {
+        await loadSessions();
+        updateSessionStatus();
+        generateSettlement(session, result.settlements);
+        showMessage('Session closed successfully!', 'success');
+    } else {
+        showMessage(`Error: ${result.error}`, 'error');
+    }
+}
 
-        function clearAllData() {
-            if (confirm('Clear all data including session status and history? This cannot be undone!')) {
-                localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem(SESSION_STATUS_KEY);
-                localStorage.removeItem(SESSION_SETTINGS_KEY);
-                localStorage.removeItem(SETTLEMENT_HISTORY_KEY);
-                showMessage('All data cleared', 'success');
-                
-                loadSessions();
-                loadSessionSettings();
-                loadPlayerDropdown();
-                updateSessionStatus();
-            }
-        }
+function generateSettlement(session, settlements) {
+    const players = settlements.map(s => ({
+        name: s.playerName,
+        amount: s.settlementAmount
+    }));
+    
+    players.sort((a, b) => b.amount - a.amount);
+    
+    const topWinner = players[0];
+    const winners = players.filter(p => p.amount > 0);
+    const losers = players.filter(p => p.amount < 0);
+    
+    let html = '';
+    
+    if (topWinner.amount > 0) {
+        html += `<div class="top-winner-badge">`;
+        html += `👑 TOP WINNER: ${topWinner.name}`;
+        html += `</div>`;
+    }
+    
+    html += `<div class="settlement-section">`;
+    html += `<div class="settlement-title">💰 Settlement Instructions</div>`;
+    
+    if (losers.length > 0) {
+        html += `<h3 style="margin: 15px 0 10px 0; color: #2d3748;">For Losing Players:</h3>`;
+        html += `<div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; color: #4a5568;">`;
+        html += `Losing players transfer their loss amount to ${topWinner.name}`;
+        html += `</div>`;
+        
+        losers.forEach(loser => {
+            html += `<div class="payment-instruction">`;
+            html += `<div class="payment-from">${loser.name}</div>`;
+            html += `<div class="payment-detail">Transfer to ${topWinner.name}</div>`;
+            html += `<div class="payment-amount">$${Math.abs(loser.amount).toFixed(2)}</div>`;
+            html += `</div>`;
+        });
+    }
+    
+    if (winners.length > 1) {
+        html += `<h3 style="margin: 20px 0 10px 0; color: #2d3748;">For Top Winner (${topWinner.name}):</h3>`;
+        html += `<div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; color: #4a5568;">`;
+        html += `You collect from losers and pay other winners`;
+        html += `</div>`;
+        
+        winners.slice(1).forEach(winner => {
+            html += `<div class="payment-instruction">`;
+            html += `<div class="payment-from">Pay ${winner.name}</div>`;
+            html += `<div class="payment-detail">From collected funds</div>`;
+            html += `<div class="payment-amount">$${winner.amount.toFixed(2)}</div>`;
+            html += `</div>`;
+        });
+    }
+    
+    html += `</div>`;
+    
+    html += `<div style="margin-top: 20px;">`;
+    html += `<h3 style="margin-bottom: 10px;">Final Results:</h3>`;
+    html += `<div class="player-status-grid">`;
+    players.forEach(player => {
+        html += `<div class="player-status-card">`;
+        html += `<div class="player-name">${player.name}</div>`;
+        html += `<div class="player-amount ${player.amount >= 0 ? 'profit-loss' : 'profit-loss negative'}">`;
+        html += `${player.amount >= 0 ? '+' : ''}$${player.amount.toFixed(2)}`;
+        html += `</div>`;
+        html += `</div>`;
+    });
+    html += `</div>`;
+    
+    const totalWinnings = winners.reduce((sum, p) => sum + p.amount, 0);
+    const totalLosses = Math.abs(losers.reduce((sum, p) => sum + p.amount, 0));
+    html += `<div style="margin-top: 15px; padding: 15px; background: #e6fffa; border-radius: 8px;">`;
+    html += `<strong>Session:</strong> ${session}<br>`;
+    html += `<strong>Total Winnings:</strong> $${totalWinnings.toFixed(2)}<br>`;
+    html += `<strong>Total Losses:</strong> $${totalLosses.toFixed(2)}<br>`;
+    html += `<strong>Top Winner Collects:</strong> $${totalLosses.toFixed(2)}<br>`;
+    html += `<strong>Top Winner Pays Out:</strong> $${(totalWinnings - topWinner.amount).toFixed(2)}`;
+    html += `</div>`;
+    
+    html += `</div>`;
+    
+    document.getElementById('settlementContent').innerHTML = html;
+    document.getElementById('settlementModal').style.display = 'block';
+}
 
-        function getStoredData() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : [];
+// ============================================
+// HISTORY & EXPORT
+// ============================================
+async function viewHistory() {
+    showMessage('Loading history...', 'warning');
+    
+    const result = await callBackendAPI('getHistory');
+    
+    if (!result.success || !result.history || result.history.length === 0) {
+        showMessage('No settlement history available yet', 'error');
+        return;
+    }
+    
+    const playerStats = {};
+    
+    result.history.forEach(entry => {
+        if (!playerStats[entry.playerName]) {
+            playerStats[entry.playerName] = {
+                sessions: 0,
+                totalSettlement: 0,
+                totalProfitLoss: 0,
+                sessionDetails: []
+            };
         }
+        
+        playerStats[entry.playerName].sessions++;
+        playerStats[entry.playerName].totalSettlement += entry.settlementAmount;
+        playerStats[entry.playerName].totalProfitLoss += entry.profitLoss;
+        playerStats[entry.playerName].sessionDetails.push({
+            session: entry.sessionDate,
+            settlement: entry.settlementAmount,
+            profitLoss: entry.profitLoss,
+            finalChips: entry.finalChips
+        });
+    });
+    
+    let html = '<h3 style="margin-bottom: 15px;">Overall Statistics</h3>';
+    html += '<div class="stats-grid">';
+    
+    Object.entries(playerStats).forEach(([player, stats]) => {
+        const avgSettlement = stats.totalSettlement / stats.sessions;
+        html += `
+            <div class="stat-card">
+                <div class="stat-label">${player}</div>
+                <div class="stat-value ${stats.totalSettlement >= 0 ? 'profit-loss' : 'profit-loss negative'}">
+                    ${stats.totalSettlement >= 0 ? '+' : ''}$${stats.totalSettlement.toFixed(0)}
+                </div>
+                <div style="margin-top: 10px; font-size: 13px; color: #4a5568;">
+                    ${stats.sessions} sessions<br>
+                    Avg: ${avgSettlement >= 0 ? '+' : ''}$${avgSettlement.toFixed(0)} per session
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    html += '<h3 style="margin: 30px 0 15px 0;">Detailed History</h3>';
+    
+    Object.entries(playerStats).forEach(([player, stats]) => {
+        html += `<h4 style="margin: 20px 0 10px 0; color: #2d3748;">${player}</h4>`;
+        html += `<table class="history-table">`;
+        html += `<thead><tr><th>Session</th><th>Final Chips</th><th>P/L</th><th>Settlement</th></tr></thead>`;
+        html += `<tbody>`;
+        
+        stats.sessionDetails.reverse().forEach(detail => {
+            html += `<tr>`;
+            html += `<td>${detail.session}</td>`;
+            html += `<td>$${detail.finalChips.toFixed(2)}</td>`;
+            html += `<td class="${detail.profitLoss >= 0 ? 'profit-loss' : 'profit-loss negative'}">${detail.profitLoss >= 0 ? '+' : ''}$${detail.profitLoss.toFixed(2)}</td>`;
+            html += `<td class="${detail.settlement >= 0 ? 'profit-loss' : 'profit-loss negative'}">${detail.settlement >= 0 ? '+' : ''}$${detail.settlement.toFixed(2)}</td>`;
+            html += `</tr>`;
+        });
+        
+        html += `</tbody></table>`;
+    });
+    
+    document.getElementById('historyContent').innerHTML = html;
+    document.getElementById('historyModal').style.display = 'block';
+}
 
-        function getSessionStatus() {
-            const stored = localStorage.getItem(SESSION_STATUS_KEY);
-            return stored ? JSON.parse(stored) : {};
-        }
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
 
-        function getSessionSettings() {
-            const stored = localStorage.getItem(SESSION_SETTINGS_KEY);
-            return stored ? JSON.parse(stored) : {};
-        }
+function clearAllData() {
+    if (confirm('Clear all LOCAL cached data? This only clears your device. Cloud data in Google Sheets remains intact.')) {
+        currentSessionData = null;
+        showMessage('Local cache cleared', 'success');
+        initializeApp();
+    }
+}
 
-        function getSettlementHistory() {
-            const stored = localStorage.getItem(SETTLEMENT_HISTORY_KEY);
-            return stored ? JSON.parse(stored) : {};
-        }
+function showMessage(message, type) {
+    const messageEl = document.getElementById('statusMessage');
+    messageEl.textContent = message;
+    messageEl.className = `status-message status-${type}`;
+    messageEl.style.display = 'block';
+    
+    setTimeout(() => {
+        messageEl.style.display = 'none';
+    }, 3000);
+}
 
-        function showMessage(message, type) {
-            const messageEl = document.getElementById('statusMessage');
-            messageEl.textContent = message;
-            messageEl.className = `status-message status-${type}`;
-            messageEl.style.display = 'block';
-            
-            setTimeout(() => {
-                messageEl.style.display = 'none';
-            }, 3000);
-        }
+// Excel export function (optional - works with cloud history)
+async function exportToExcel() {
+    const result = await callBackendAPI('getHistory');
+    
+    if (!result.success || !result.history || result.history.length === 0) {
+        showMessage('No history to export', 'error');
+        return;
+    }
+    
+    showMessage('Generating Excel file...', 'success');
+    
+    if (typeof XLSX === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = () => generateExcelFromCloud(result.history);
+        script.onerror = () => showMessage('Failed to load Excel library', 'error');
+        document.head.appendChild(script);
+    } else {
+        generateExcelFromCloud(result.history);
+    }
+}
 
-        async function exportToExcel() {
-            const history = getSettlementHistory();
-            
-            if (Object.keys(history).length === 0) {
-                showMessage('No settlement history to export', 'error');
-                return;
-            }
-            
-            showMessage('Generating Excel file...', 'success');
-            
-            // Load SheetJS library dynamically
-            if (typeof XLSX === 'undefined') {
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-                script.onload = () => generateExcelFile(history);
-                script.onerror = () => showMessage('Failed to load Excel library', 'error');
-                document.head.appendChild(script);
-            } else {
-                generateExcelFile(history);
-            }
+function generateExcelFromCloud(history) {
+    const playerData = {};
+    
+    history.forEach(entry => {
+        if (!playerData[entry.playerName]) {
+            playerData[entry.playerName] = [];
         }
+        
+        playerData[entry.playerName].push({
+            'Session Date': entry.sessionDate,
+            'Starting Capital': `$${entry.startingCapital.toFixed(2)}`,
+            'Final Chips': `$${entry.finalChips.toFixed(2)}`,
+            'Profit/Loss': `$${entry.profitLoss.toFixed(2)}`,
+            'Settlement Factor': entry.settlementFactor,
+            'Settlement Amount': `$${entry.settlementAmount.toFixed(2)}`,
+            'Closed At': entry.closedAt ? new Date(entry.closedAt).toLocaleString() : entry.sessionDate
+        });
+    });
+    
+    const wb = XLSX.utils.book_new();
+    
+    const summaryData = [];
+    summaryData.push(['Poker Settlement History - Summary (Cloud Sync)']);
+    summaryData.push(['Generated:', new Date().toLocaleString()]);
+    summaryData.push([]);
+    summaryData.push(['Player', 'Total Sessions', 'Total Settlement', 'Average Settlement', 'Total P/L']);
+    
+    Object.entries(playerData).forEach(([playerName, sessions]) => {
+        const totalSessions = sessions.length;
+        const totalSettlement = sessions.reduce((sum, s) => {
+            return sum + parseFloat(s['Settlement Amount'].replace('$', ''));
+        }, 0);
+        const totalPL = sessions.reduce((sum, s) => {
+            return sum + parseFloat(s['Profit/Loss'].replace('$', ''));
+        }, 0);
+        const avgSettlement = totalSettlement / totalSessions;
+        
+        summaryData.push([
+            playerName,
+            totalSessions,
+            `$${totalSettlement.toFixed(2)}`,
+            `$${avgSettlement.toFixed(2)}`,
+            `$${totalPL.toFixed(2)}`
+        ]);
+    });
+    
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+    summaryWs['!cols'] = [
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 15 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+    
+    Object.entries(playerData).forEach(([playerName, sessions]) => {
+        sessions.sort((a, b) => new Date(b['Session Date']) - new Date(a['Session Date']));
+        
+        const ws = XLSX.utils.json_to_sheet(sessions);
+        ws['!cols'] = [
+            { wch: 15 },
+            { wch: 18 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 18 },
+            { wch: 18 },
+            { wch: 20 }
+        ];
+        
+        const sheetName = playerName.substring(0, 31).replace(/[:\\/?*\[\]]/g, '');
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+    
+    const fileName = `Poker_Cloud_Sync_History_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    showMessage('Excel file downloaded successfully!', 'success');
+}
+```
 
-        function generateExcelFile(history) {
-            // Aggregate player data
-            const playerData = {};
-            
-            Object.entries(history).forEach(([session, sessionData]) => {
-                Object.entries(sessionData.players).forEach(([playerName, playerInfo]) => {
-                    if (!playerData[playerName]) {
-                        playerData[playerName] = [];
-                    }
-                    
-                    playerData[playerName].push({
-                        'Session Date': session,
-                        'Starting Capital': `$${playerInfo.startingCapital.toFixed(2)}`,
-                        'Final Chips': `$${playerInfo.finalChips.toFixed(2)}`,
-                        'Profit/Loss': `$${playerInfo.profitLoss.toFixed(2)}`,
-                        'Settlement Factor': playerInfo.settlementFactor,
-                        'Settlement Amount': `$${playerInfo.settlementAmount.toFixed(2)}`,
-                        'Closed At': sessionData.closedAt ? new Date(sessionData.closedAt).toLocaleString() : session
-                    });
-                });
-            });
-            
-            // Create workbook
-            const wb = XLSX.utils.book_new();
-            
-            // Create summary sheet
-            const summaryData = [];
-            summaryData.push(['Poker Settlement History - Summary']);
-            summaryData.push(['Generated:', new Date().toLocaleString()]);
-            summaryData.push([]);
-            summaryData.push(['Player', 'Total Sessions', 'Total Settlement', 'Average Settlement', 'Total P/L']);
-            
-            Object.entries(playerData).forEach(([playerName, sessions]) => {
-                const totalSessions = sessions.length;
-                const totalSettlement = sessions.reduce((sum, s) => {
-                    return sum + parseFloat(s['Settlement Amount'].replace('$', ''));
-                }, 0);
-                const totalPL = sessions.reduce((sum, s) => {
-                    return sum + parseFloat(s['Profit/Loss'].replace('$', ''));
-                }, 0);
-                const avgSettlement = totalSettlement / totalSessions;
-                
-                summaryData.push([
-                    playerName,
-                    totalSessions,
-                    `$${totalSettlement.toFixed(2)}`,
-                    `$${avgSettlement.toFixed(2)}`,
-                    `$${totalPL.toFixed(2)}`
-                ]);
-            });
-            
-            const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
-            
-            // Set column widths for summary
-            summaryWs['!cols'] = [
-                { wch: 20 }, // Player
-                { wch: 15 }, // Total Sessions
-                { wch: 18 }, // Total Settlement
-                { wch: 18 }, // Average Settlement
-                { wch: 15 }  // Total P/L
-            ];
-            
-            XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
-            
-            // Create individual player sheets
-            Object.entries(playerData).forEach(([playerName, sessions]) => {
-                // Sort sessions by date (newest first)
-                sessions.sort((a, b) => new Date(b['Session Date']) - new Date(a['Session Date']));
-                
-                const ws = XLSX.utils.json_to_sheet(sessions);
-                
-                // Set column widths
-                ws['!cols'] = [
-                    { wch: 15 }, // Session Date
-                    { wch: 18 }, // Starting Capital
-                    { wch: 15 }, // Final Chips
-                    { wch: 15 }, // Profit/Loss
-                    { wch: 18 }, // Settlement Factor
-                    { wch: 18 }, // Settlement Amount
-                    { wch: 20 }  // Closed At
-                ];
-                
-                // Clean player name for sheet name (Excel has restrictions)
-                const sheetName = playerName.substring(0, 31).replace(/[:\\/?*\[\]]/g, '');
-                XLSX.utils.book_append_sheet(wb, ws, sheetName);
-            });
-            
-            // Generate Excel file
-            const fileName = `Poker_Settlement_History_${new Date().toISOString().split('T')[0]}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-            
-            showMessage('Excel file downloaded successfully!', 'success');
-        }
-    </script>
+---
+
+## CRITICAL: URL Configuration
+
+Before the app will work, you MUST:
+
+1. Set up Google Sheets backend (follow GOOGLE_SHEETS_SETUP_GUIDE.md)
+2. Get your Web App URL from deployment
+3. Replace this line in the code above:
+
+```javascript
+const BACKEND_URL = 'YOUR_GOOGLE_SHEETS_WEB_APP_URL_HERE';
+```
+
+With your actual URL like:
+
+```javascript
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby.../exec';
+```
+
+---
+
+## How to Use This Code
+
+1. Copy your existing `poker-tracker-enhanced-final.html`
+2. Find the `<script>` tag (around line 843)
+3. Replace everything between `<script>` and `</script>` with the code above
+4. Update the BACKEND_URL
+5. Update ALL_PLAYERS with your names
+6. Update APP_PASSWORD
+7. Save as `poker-tracker-cloud-sync.html`
+8. Upload to GitHub Pages
+
+---
+
+## Testing
+
+1. Open on Device 1 → Create session
+2. Open on Device 2 → See same session
+3. Device 2 submits chips
+4. Device 1 clicks "Check Session Status"
+5. Should see Device 2's submission ✅
+
+Real-time cloud sync is working!
+
+
+
 </body>
 </html>
