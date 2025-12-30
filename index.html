@@ -660,7 +660,7 @@
                     <label for="passwordInput">Password</label>
                     <input type="password" id="passwordInput" placeholder="Enter password" required autofocus>
                 </div>
-                <button type="submit" class="btn-login" onclick="handleLogin()">Login</button>
+                <button type="submit" class="btn-login" id="loginBtn">Login</button>
             </form>
             <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; font-size: 13px; color: #4a5568;">
                 <strong>💡 Tip:</strong> Ask the game organizer for the password. Default: <code>poker2024</code>
@@ -672,7 +672,7 @@
     <div id="appContainer" class="app-container">
         <div class="container">
             <div class="header">
-                <button class="logout-btn" onclick="handleLogout()">Logout</button>
+                <button class="logout-btn" id="logoutBtn">Logout</button>
                 <h1>🃏 Poker Chip Tracker</h1>
                 <p>Track chips, validate & settle</p>
             </div>
@@ -801,7 +801,7 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-primary" onclick="confirmCreateSession()">Create Session</button>
+                    <button class="btn btn-primary" id="confirmCreateBtn">Create Session</button>
                 </div>
             </div>
         </div>
@@ -847,89 +847,10 @@
         const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx3z-KSqevTrHtr2AeOqqIxA0uFG8yjDZpcPe7UVuJDJRqOZYH8CQ01ClLW85RfuAqSbg/exec';
         
         // All available players - CUSTOMIZE THIS!
-        const ALL_PLAYERS = ['Leo', 'SY', 'VW', 'ZL', 'Juv', 'Jack', ', 'Other Player 1'', 'Other Player 2', 'Other Player 3', 'Other Player 4'];
+        const ALL_PLAYERS = ['Leonard', 'Sherlene', 'Vince', 'Zilin', 'Juvena', 'Jackson', 'Other Player 1', 'Other Player 2', 'Other Player 3', 'Other Player 4'];
         
         // App password - CHANGE THIS!
         const APP_PASSWORD = 'welovepoker';
-
-        ```
-
----
-
-## 🚀 Quick Setup (15 minutes total)
-
-### STEP 1: Setup Google Sheets Backend (10 min)
-
-1. Go to https://sheets.google.com
-2. Create new spreadsheet
-3. Extensions → Apps Script
-4. Paste **google-sheets-backend.gs** code
-5. Deploy → New deployment → Web app
-6. Execute as: **Me**
-7. Who has access: **Anyone**
-8. Copy the Web App URL
-
-### STEP 2: Configure HTML (2 min)
-
-1. Open **poker-tracker-cloud-sync.html** in text editor
-2. Line ~9: Paste your Web App URL
-3. Line ~12: Change player names
-4. Line ~15: Change password
-5. Save file
-
-### STEP 3: Deploy & Test (3 min)
-
-1. Upload to GitHub Pages (same as before)
-2. Open on Device 1 → Create session
-3. Open on Device 2 → See same session
-4. Device 2 submits chips
-5. Device 1 checks status → See Device 2's submission ✅
-
----
-
-## ✨ What You Get
-
-### Real-Time Cloud Sync:
-- ✅ All devices see same data
-- ✅ Create session → Saved to Google Sheets
-- ✅ Submit chips → Syncs instantly
-- ✅ Check status → See live updates
-- ✅ Close session → Saved to history
-
-### Multi-Device Support:
-- ✅ Leo's phone → Creates session
-- ✅ John's phone → Submits chips
-- ✅ Mike's phone → Checks status
-- ✅ Everyone sees real-time updates
-
-### Cloud Storage:
-- ✅ All data in Google Sheets
-- ✅ Automatic backup
-- ✅ Access from any device
-- ✅ Export to Excel anytime
-
----
-
-## 🎮 User Experience
-
-**Organizer:**
-```
-Opens app → Creates session → Selects players
-Session saved to cloud ☁️
-```
-
-**All Players:**
-```
-Open URL on their phone → See session
-Select name → Enter chips → Submit
-Saved to cloud instantly ☁️
-```
-
-**Check Status:**
-```
-Click "Check Session Status"
-Shows: Leo ✅ | John ✅ | Mike ⏳ | David ⏳
-Real-time from Google Sheets!
         
         let currentSessionData = null;
         
@@ -954,6 +875,13 @@ Real-time from Google Sheets!
         }
         
         window.addEventListener('DOMContentLoaded', function() {
+            // Setup login button
+            document.getElementById('loginBtn')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                handleLogin();
+            });
+            
+            // Check auth
             checkAuth();
         });
         
@@ -1008,6 +936,9 @@ Real-time from Google Sheets!
         });
         
         async function initializeApp() {
+            // Setup logout button
+            document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+            
             await loadSessions();
             await loadSessionSettings();
             updateCalculations();
@@ -1034,6 +965,7 @@ Real-time from Google Sheets!
             });
             
             document.getElementById('closeCreateModal').addEventListener('click', () => closeModal('createSessionModal'));
+            document.getElementById('confirmCreateBtn')?.addEventListener('click', confirmCreateSession);
             document.getElementById('closeStatusModal').addEventListener('click', () => closeModal('sessionStatusModal'));
             document.getElementById('closeSettlementModal').addEventListener('click', () => closeModal('settlementModal'));
             document.getElementById('closeHistoryModal').addEventListener('click', () => closeModal('historyModal'));
