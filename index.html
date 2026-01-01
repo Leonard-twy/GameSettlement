@@ -686,8 +686,8 @@
                 <br><strong>Simple 5-step guide for players:</strong>
                 <br>1) Open app & login
                 <br>2) Select session & your name
-                <br>3) Count your chips
-                <br>4) Enter submit and wait for all players to complete submission
+                <br>3) Count your chips and submit
+                <br>4) Wait for all players
                 <br>5) Wait for Settlement summary!
                 <br>6) Get paid!
             </div>
@@ -1546,12 +1546,16 @@
             // Select the player in dropdown
             document.getElementById('playerName').value = playerName;
             
-            // Pre-fill their chips
-            document.getElementById('chip1').value = chips.chip1 || 0;
-            document.getElementById('chip2').value = chips.chip2 || 0;
-            document.getElementById('chip5').value = chips.chip5 || 0;
-            document.getElementById('chip10').value = chips.chip10 || 0;
-            document.getElementById('chip20').value = chips.chip20 || 0;
+            // Pre-fill their chips (with null checking)
+            if (chips) {
+                document.getElementById('chip1').value = chips.chip1 || 0;
+                document.getElementById('chip2').value = chips.chip2 || 0;
+                document.getElementById('chip5').value = chips.chip5 || 0;
+                document.getElementById('chip10').value = chips.chip10 || 0;
+                document.getElementById('chip20').value = chips.chip20 || 0;
+            } else {
+                console.warn('No chips data provided to pre-fill');
+            }
             
             // Update calculations
             updateCalculations();
@@ -1569,7 +1573,10 @@
             if (statusDiv) statusDiv.remove();
             
             // Scroll to chip entry section
-            document.querySelector('.chip-entry').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const chipEntry = document.querySelector('.chip-entry');
+            if (chipEntry) {
+                chipEntry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
             
             // Show message
             showMessage(`⚠️ Fix ${playerName}'s chip count and resubmit. Current values are pre-filled.`, 'warning');
@@ -1644,7 +1651,7 @@
                 
                 // Pre-fill current player's chips
                 const playerSubmission = submissions.find(s => s.playerName === currentPlayer);
-                if (playerSubmission) {
+                if (playerSubmission && playerSubmission.chips) {
                     document.getElementById('chip1').value = playerSubmission.chips.chip1 || 0;
                     document.getElementById('chip2').value = playerSubmission.chips.chip2 || 0;
                     document.getElementById('chip5').value = playerSubmission.chips.chip5 || 0;
@@ -1653,6 +1660,10 @@
                     updateCalculations();
                     
                     // Enable editing
+                    enableEdit();
+                } else {
+                    console.warn('Could not pre-fill chips - submission data not found or incomplete');
+                    // Still enable editing even if we can't pre-fill
                     enableEdit();
                 }
                 
