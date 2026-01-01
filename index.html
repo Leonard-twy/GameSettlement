@@ -644,6 +644,22 @@
                 padding: 8px;
             }
         }
+        
+        /* Animations for auto-refresh status */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
     </style>
 </head>
 <body>
@@ -671,7 +687,6 @@
                 <br>3) Count your chips
                 <br>4) Enter & submit
                 <br>5) Get paid!
-                
             </div>
         </div>
     </div>
@@ -686,7 +701,7 @@
             </div>
 
             <div class="demo-banner">
-                Data saved locally in browser
+                DEMO MODE - Data saved locally in browser
             </div>
 
             <div id="sessionStatusBanner" class="session-status">
@@ -699,6 +714,14 @@
 
             <div class="content">
                 <div id="statusMessage" class="status-message"></div>
+                
+                <!-- Helper Banner -->
+                <div id="helperBanner" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;">
+                    <strong>📝 Getting Started:</strong><br>
+                    1️⃣ Click "Create New Session" below<br>
+                    2️⃣ Select which players are playing tonight<br>
+                    3️⃣ Then you can submit chips!
+                </div>
 
                 <div class="form-group">
                     <label for="sessionSelect">Session</label>
@@ -730,24 +753,24 @@
                     <label>Enter Your Chips</label>
                     <div class="chip-inputs">
                         <div class="chip-row">
-                            <span class="chip-label">$1</span>
-                            <input type="number" id="chip1" class="chip-input" value="10" min="0">
-                        </div>
-                        <div class="chip-row">
-                            <span class="chip-label">$2</span>
-                            <input type="number" id="chip2" class="chip-input" value="20" min="0">
-                        </div>
-                        <div class="chip-row">
-                            <span class="chip-label">$5</span>
-                            <input type="number" id="chip5" class="chip-input" value="10" min="0">
+                            <span class="chip-label">$20</span>
+                            <input type="number" id="chip20" class="chip-input" value="5" min="0">
                         </div>
                         <div class="chip-row">
                             <span class="chip-label">$10</span>
                             <input type="number" id="chip10" class="chip-input" value="5" min="0">
                         </div>
                         <div class="chip-row">
-                            <span class="chip-label">$20</span>
-                            <input type="number" id="chip20" class="chip-input" value="5" min="0">
+                            <span class="chip-label">$5</span>
+                            <input type="number" id="chip5" class="chip-input" value="10" min="0">
+                        </div>
+                        <div class="chip-row">
+                            <span class="chip-label">$2</span>
+                            <input type="number" id="chip2" class="chip-input" value="20" min="0">
+                        </div>
+                        <div class="chip-row">
+                            <span class="chip-label">$1</span>
+                            <input type="number" id="chip1" class="chip-input" value="10" min="0">
                         </div>
                     </div>
                 </div>
@@ -851,7 +874,7 @@
     <script>
         const AUTH_KEY = 'pokerTrackerAuth';
         
-        // === CRITICAL: REPLACE THIS URL WITH YOUR GOOGLE SHEETS WEB APP URL ===
+        // GOOGLE SHEETS BACKEND URL - CONFIGURED!
         const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx03td729nBTuq_qv-SUl4_7eKysgOH1-1CTHsVjsTkVSZhtmDfva011aiUA8ZmsZ9tTQ/exec';
         
         // All available players - CUSTOMIZE THIS!
@@ -972,6 +995,11 @@
                 updateCalculations();
             });
             
+            // Check if player has already submitted when they select their name
+            document.getElementById('playerName').addEventListener('change', function() {
+                checkIfPlayerSubmitted();
+            });
+            
             document.getElementById('closeCreateModal').addEventListener('click', () => closeModal('createSessionModal'));
             document.getElementById('confirmCreateBtn')?.addEventListener('click', confirmCreateSession);
             document.getElementById('closeStatusModal').addEventListener('click', () => closeModal('sessionStatusModal'));
@@ -1078,11 +1106,20 @@
             
             if (result.success) {
                 closeModal('createSessionModal');
+                
+                // Reload sessions list
                 await loadSessions();
                 
+                // Select the newly created session
                 document.getElementById('sessionSelect').value = date;
+                
+                // Load the session settings (this sets currentSessionData)
                 await loadSessionSettings();
+                
+                // Now load player dropdown (depends on currentSessionData)
                 loadPlayerDropdown();
+                
+                // Update status banner
                 updateSessionStatus();
                 
                 showMessage(`Session created for ${date} with ${selectedPlayers.length} players`, 'success');
@@ -1107,6 +1144,10 @@
                 startingCapitalInput.value = result.session.startingCapital;
                 settlementFactorInput.value = result.session.settlementFactor;
                 
+                // Hide helper banner once session exists
+                const helperBanner = document.getElementById('helperBanner');
+                if (helperBanner) helperBanner.style.display = 'none';
+                
                 const isClosed = result.session.status === 'closed';
                 
                 startingCapitalInput.disabled = true;
@@ -1129,15 +1170,32 @@
         
         function loadPlayerDropdown() {
             const playerSelect = document.getElementById('playerName');
+            console.log('loadPlayerDropdown called');
+            console.log('currentSessionData:', currentSessionData);
+            
             playerSelect.innerHTML = '<option value="">Select your name...</option>';
             
+            if (!currentSessionData) {
+                console.log('No currentSessionData - disabling dropdown');
+                playerSelect.innerHTML = '<option value="">⚠️ Create a session first</option>';
+                playerSelect.disabled = true;
+                return;
+            }
+            
             if (currentSessionData && currentSessionData.players) {
+                console.log('Loading players:', currentSessionData.players);
+                playerSelect.disabled = false;
                 currentSessionData.players.forEach(player => {
                     const option = document.createElement('option');
                     option.value = player;
                     option.textContent = player;
                     playerSelect.appendChild(option);
                 });
+                console.log('Player dropdown populated with', currentSessionData.players.length, 'players');
+            } else {
+                console.log('currentSessionData exists but no players array');
+                playerSelect.innerHTML = '<option value="">⚠️ No players in session</option>';
+                playerSelect.disabled = true;
             }
         }
         
@@ -1207,17 +1265,100 @@
             
             if (result.success) {
                 const settlement = result.submission.settlementAmount;
-                showMessage(`Chips submitted! Settlement: ${settlement >= 0 ? '+' : ''}$${settlement.toFixed(2)}`, 'success');
                 
-                document.getElementById('chip1').value = 0;
-                document.getElementById('chip2').value = 0;
-                document.getElementById('chip5').value = 0;
-                document.getElementById('chip10').value = 0;
-                document.getElementById('chip20').value = 0;
+                // Store that this player has submitted
+                sessionStorage.setItem(`submitted_${session}_${playerName}`, 'true');
                 
-                updateCalculations();
+                // Store the submission data for potential edit later
+                sessionStorage.setItem(`chips_${session}_${playerName}`, JSON.stringify({
+                    chip1, chip2, chip5, chip10, chip20
+                }));
+                
+                // Hide submit button and chip inputs
+                hideSubmitSection();
+                
+                showMessage(`✅ Chips submitted! Settlement: ${settlement >= 0 ? '+' : ''}$${settlement.toFixed(2)}`, 'success');
+                
+                // Wait 1 second then show status with auto-refresh
+                setTimeout(() => {
+                    showSessionStatusWithAutoRefresh();
+                }, 1000);
             } else {
                 showMessage(`Error: ${result.error || 'Failed to submit'}`, 'error');
+            }
+        }
+        
+        function hideSubmitSection() {
+            const submitBtn = document.getElementById('submitBtn');
+            const chipInputs = document.querySelectorAll('input[id^="chip"]');
+            
+            // Hide submit button
+            submitBtn.style.display = 'none';
+            
+            // Disable chip inputs
+            chipInputs.forEach(input => {
+                input.disabled = true;
+                input.style.backgroundColor = '#f5f5f5';
+            });
+            
+            // Show submitted status
+            const submitSection = submitBtn.parentElement;
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'submittedStatus';
+            statusDiv.style.cssText = 'background: #c6f6d5; padding: 20px; border-radius: 8px; text-align: center; margin-top: 20px; border: 2px solid #48bb78;';
+            statusDiv.innerHTML = `
+                <h3 style="color: #22543d; margin: 0 0 10px 0;">✅ Submission Complete!</h3>
+                <p style="margin: 0; color: #2d3748;">Your chips have been recorded. Wait for other players to submit.</p>
+                <button onclick="enableEdit()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Edit My Submission
+                </button>
+            `;
+            submitSection.appendChild(statusDiv);
+        }
+        
+        function enableEdit() {
+            const submitBtn = document.getElementById('submitBtn');
+            const chipInputs = document.querySelectorAll('input[id^="chip"]');
+            const statusDiv = document.getElementById('submittedStatus');
+            
+            // Show submit button
+            submitBtn.style.display = 'inline-block';
+            
+            // Enable chip inputs
+            chipInputs.forEach(input => {
+                input.disabled = false;
+                input.style.backgroundColor = '';
+            });
+            
+            // Remove status message
+            if (statusDiv) {
+                statusDiv.remove();
+            }
+            
+            showMessage('You can now edit your submission', 'success');
+        }
+        
+        function checkIfPlayerSubmitted() {
+            const playerName = document.getElementById('playerName').value;
+            const session = document.getElementById('sessionSelect').value;
+            
+            if (!playerName || !session) return;
+            
+            const hasSubmitted = sessionStorage.getItem(`submitted_${session}_${playerName}`) === 'true';
+            
+            if (hasSubmitted) {
+                // Load previous submission
+                const savedChips = sessionStorage.getItem(`chips_${session}_${playerName}`);
+                if (savedChips) {
+                    const chips = JSON.parse(savedChips);
+                    document.getElementById('chip1').value = chips.chip1;
+                    document.getElementById('chip2').value = chips.chip2;
+                    document.getElementById('chip5').value = chips.chip5;
+                    document.getElementById('chip10').value = chips.chip10;
+                    document.getElementById('chip20').value = chips.chip20;
+                    updateCalculations();
+                }
+                hideSubmitSection();
             }
         }
         
@@ -1243,7 +1384,7 @@
         async function showSessionStatus() {
             const session = document.getElementById('sessionSelect').value;
             if (!session) {
-                showMessage('Please select a session', 'error');
+                showMessage('⚠️ Please create a session first!', 'error');
                 return;
             }
             
@@ -1349,10 +1490,253 @@
                 html += `<div style="margin-top: 20px; padding: 15px; background: #c6f6d5; border-radius: 8px; color: #22543d;">`;
                 html += `<strong>✅ Ready to close session and generate settlement instructions!</strong>`;
                 html += `</div>`;
+            } else if (!isBalanced && submittedPlayers.length === expectedPlayers.length) {
+                // All players submitted but settlements don't balance
+                html += `<div style="margin-top: 20px; padding: 20px; background: #fed7d7; border-radius: 8px; color: #742a2a; border: 2px solid #fc8181;">`;
+                html += `<h3 style="margin: 0 0 10px 0;">⚠️ Settlements Don't Balance!</h3>`;
+                html += `<p style="margin: 0 0 15px 0;">Total: $${totalSettlement.toFixed(2)} (should be $0.00)</p>`;
+                html += `<p style="margin: 0 0 15px 0; font-weight: 600;">Someone miscounted their chips. Please recount and resubmit.</p>`;
+                html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px;">`;
+                
+                // Add "Fix My Submission" button for each player
+                submissions.forEach(sub => {
+                    html += `<button onclick="fixPlayerSubmission('${sub.playerName}', ${JSON.stringify(sub.chips).replace(/"/g, '&quot;')})" 
+                             style="padding: 10px 15px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                             Fix ${sub.playerName}'s Chips
+                             </button>`;
+                });
+                
+                html += `</div></div>`;
             }
+            
+            // Store submissions data for fixing later
+            window.currentSubmissions = playerSubmissions;
             
             document.getElementById('sessionStatusContent').innerHTML = html;
             document.getElementById('sessionStatusModal').style.display = 'block';
+        }
+        
+        function fixPlayerSubmission(playerName, chips) {
+            // Close the status modal
+            closeModal('sessionStatusModal');
+            
+            // Select the player in dropdown
+            document.getElementById('playerName').value = playerName;
+            
+            // Pre-fill their chips
+            document.getElementById('chip1').value = chips.chip1 || 0;
+            document.getElementById('chip2').value = chips.chip2 || 0;
+            document.getElementById('chip5').value = chips.chip5 || 0;
+            document.getElementById('chip10').value = chips.chip10 || 0;
+            document.getElementById('chip20').value = chips.chip20 || 0;
+            
+            // Update calculations
+            updateCalculations();
+            
+            // Enable editing (in case submit button was hidden)
+            const submitBtn = document.getElementById('submitBtn');
+            const chipInputs = document.querySelectorAll('input[id^="chip"]');
+            const statusDiv = document.getElementById('submittedStatus');
+            
+            submitBtn.style.display = 'inline-block';
+            chipInputs.forEach(input => {
+                input.disabled = false;
+                input.style.backgroundColor = '';
+            });
+            if (statusDiv) statusDiv.remove();
+            
+            // Scroll to chip entry section
+            document.querySelector('.chip-entry').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            // Show message
+            showMessage(`⚠️ Fix ${playerName}'s chip count and resubmit. Current values are pre-filled.`, 'warning');
+        }
+        
+        // Auto-refresh status page functionality
+        let autoRefreshInterval = null;
+        
+        async function showSessionStatusWithAutoRefresh() {
+            // Clear any existing interval
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            
+            // Show the status immediately
+            await checkStatusAndAct();
+            
+            // Set up auto-refresh every 5 seconds
+            autoRefreshInterval = setInterval(async () => {
+                await checkStatusAndAct();
+            }, 5000);
+        }
+        
+        async function checkStatusAndAct() {
+            const session = document.getElementById('sessionSelect').value;
+            const currentPlayer = document.getElementById('playerName').value;
+            
+            if (!session) {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                return;
+            }
+            
+            const result = await callBackendAPI('getSessionStatus', {
+                sessionDate: session
+            });
+            
+            if (!result.success) {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                return;
+            }
+            
+            const sessionData = result.session;
+            const submissions = result.submissions || [];
+            
+            const expectedPlayers = sessionData.players;
+            const submittedPlayers = submissions.map(s => s.playerName);
+            const allSubmitted = expectedPlayers.every(p => submittedPlayers.includes(p));
+            
+            const totalSettlement = submissions.reduce((sum, s) => sum + s.settlementAmount, 0);
+            const isBalanced = Math.abs(totalSettlement) < 0.01;
+            
+            // Decision logic
+            if (allSubmitted && isBalanced) {
+                // Stop auto-refresh
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                
+                // Auto-close session and show settlement
+                await autoCloseAndShowSettlement(session, submissions);
+            } else if (allSubmitted && !isBalanced) {
+                // Stop auto-refresh
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                
+                // Close status modal and return to submission page
+                closeModal('sessionStatusModal');
+                
+                // Pre-fill current player's chips
+                const playerSubmission = submissions.find(s => s.playerName === currentPlayer);
+                if (playerSubmission) {
+                    document.getElementById('chip1').value = playerSubmission.chips.chip1 || 0;
+                    document.getElementById('chip2').value = playerSubmission.chips.chip2 || 0;
+                    document.getElementById('chip5').value = playerSubmission.chips.chip5 || 0;
+                    document.getElementById('chip10').value = playerSubmission.chips.chip10 || 0;
+                    document.getElementById('chip20').value = playerSubmission.chips.chip20 || 0;
+                    updateCalculations();
+                    
+                    // Enable editing
+                    enableEdit();
+                }
+                
+                // Show error message
+                showMessage(`⚠️ Settlements don't balance! Total: $${totalSettlement.toFixed(2)}. Please recount your chips and resubmit.`, 'error');
+                
+                // Scroll to chip entry
+                setTimeout(() => {
+                    document.querySelector('.chip-entry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 500);
+            } else {
+                // Still waiting - show status with countdown
+                displayWaitingStatus(sessionData, submissions);
+            }
+        }
+        
+        function displayWaitingStatus(sessionData, submissions) {
+            const expectedPlayers = sessionData.players;
+            const playerSubmissions = {};
+            submissions.forEach(sub => {
+                playerSubmissions[sub.playerName] = sub;
+            });
+            
+            const submittedPlayers = Object.keys(playerSubmissions);
+            const missingPlayers = expectedPlayers.filter(p => !submittedPlayers.includes(p));
+            
+            let html = `<div style="background: #e6fffa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #81e6d9;">`;
+            html += `<strong>🔄 Auto-refreshing every 5 seconds...</strong><br>`;
+            html += `Waiting for ${missingPlayers.length} player(s) to submit`;
+            html += `</div>`;
+            
+            html += `<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">`;
+            html += `<h3 style="margin: 0 0 10px 0;">📊 Progress: ${submittedPlayers.length}/${expectedPlayers.length} players</h3>`;
+            html += `<div style="width: 100%; background: #e2e8f0; border-radius: 10px; height: 25px; overflow: hidden;">`;
+            const progress = (submittedPlayers.length / expectedPlayers.length) * 100;
+            html += `<div style="width: ${progress}%; background: linear-gradient(90deg, #48bb78, #38a169); height: 100%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">${Math.round(progress)}%</div>`;
+            html += `</div></div>`;
+            
+            html += `<h3 style="margin: 20px 0 15px 0;">Player Status</h3>`;
+            html += `<div class="player-status-grid">`;
+            
+            expectedPlayers.forEach(player => {
+                const submitted = playerSubmissions[player];
+                if (submitted) {
+                    html += `
+                        <div class="player-status-card submitted" style="animation: fadeIn 0.3s;">
+                            <div class="player-name">${player} ✅</div>
+                            <div class="player-amount ${submitted.settlementAmount >= 0 ? 'profit-loss' : 'profit-loss negative'}">
+                                ${submitted.settlementAmount >= 0 ? '+' : ''}$${submitted.settlementAmount.toFixed(2)}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="player-status-card" style="animation: pulse 2s infinite;">
+                            <div class="player-name">${player}</div>
+                            <div style="color: #a0aec0; font-weight: 600;">⏳ Waiting...</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            html += `</div>`;
+            
+            if (missingPlayers.length > 0) {
+                html += `<div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; color: #92400e;">`;
+                html += `<strong>⏳ Still waiting for:</strong><br>`;
+                html += missingPlayers.join(', ');
+                html += `</div>`;
+            }
+            
+            html += `<div style="margin-top: 20px; text-align: center;">`;
+            html += `<button onclick="stopAutoRefresh()" style="padding: 10px 20px; background: #f56565; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Stop Auto-Refresh</button>`;
+            html += `</div>`;
+            
+            document.getElementById('sessionStatusContent').innerHTML = html;
+            document.getElementById('sessionStatusModal').style.display = 'block';
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            closeModal('sessionStatusModal');
+            showMessage('Auto-refresh stopped', 'success');
+        }
+        
+        async function autoCloseAndShowSettlement(session, submissions) {
+            showMessage('All players submitted and balanced! Closing session...', 'success');
+            
+            // Close the session automatically
+            const result = await callBackendAPI('closeSession', {
+                sessionDate: session
+            });
+            
+            if (result.success) {
+                await loadSessions();
+                updateSessionStatus();
+                
+                // Generate and show settlement
+                generateSettlement(session, result.settlements);
+                
+                showMessage('✅ Session closed successfully! Settlement instructions below.', 'success');
+            } else {
+                showMessage(`Error closing session: ${result.error}`, 'error');
+            }
         }
         
         async function closeSession() {
@@ -1545,6 +1929,11 @@
         }
         
         function closeModal(modalId) {
+            // Stop auto-refresh if closing status modal
+            if (modalId === 'sessionStatusModal' && autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
             document.getElementById(modalId).style.display = 'none';
         }
         
