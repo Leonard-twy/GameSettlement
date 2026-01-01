@@ -1703,11 +1703,15 @@
                 // DON'T stop auto-refresh - keep checking in case another player fixes it!
                 // We'll continue checking every 5 seconds for balance or session closure
                 
-                // Check if we're already on the form (not in modal)
+                // Check current state: are we in modal, showing submission complete, or already on form?
                 const isModalOpen = document.getElementById('sessionStatusModal').style.display === 'block';
+                const hasSubmissionComplete = document.getElementById('submittedStatus') !== null;
+                const needsSetup = isModalOpen || hasSubmissionComplete;
                 
-                if (isModalOpen) {
-                    // First time detecting unbalanced - close modal and return to form
+                if (needsSetup) {
+                    // First time detecting unbalanced OR player has "Submission Complete!" showing
+                    // Need to set up the form for editing
+                    
                     closeModal('sessionStatusModal');
                     
                     // Pre-fill current player's chips
@@ -1720,7 +1724,7 @@
                         document.getElementById('chip20').value = playerSubmission.chips.chip20 || 0;
                         updateCalculations();
                         
-                        // Enable editing
+                        // Enable editing (this removes "Submission Complete!" box)
                         enableEdit();
                     } else {
                         console.warn('Could not pre-fill chips - submission data not found or incomplete');
@@ -1739,7 +1743,7 @@
                         document.querySelector('.chip-entry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }, 500);
                 } else {
-                    // Already on form - just update the warning with fresh data
+                    // Already on form with warning showing - just update the warning with fresh data
                     showUnbalanceWarning(totalSettlement);
                 }
                 
