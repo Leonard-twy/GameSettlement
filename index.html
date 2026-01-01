@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Texas Hold'em Chip Tracker - Enhanced</title>
+    <!-- Favicon to prevent 404 error -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
     <style>
         * {
             margin: 0;
@@ -683,10 +685,11 @@
                 <hr>
                 <br><strong>Simple 5-step guide for players:</strong>
                 <br>1) Open app & login
-                <br>2) Select session & name
+                <br>2) Select session & your name
                 <br>3) Count your chips
-                <br>4) Enter & submit
-                <br>5) Get paid!
+                <br>4) Enter submit and wait for all players to complete submission
+                <br>5) Wait for Settlement summary!
+                <br>6) Get paid!
             </div>
         </div>
     </div>
@@ -989,10 +992,14 @@
             document.getElementById('exportExcelBtn')?.addEventListener('click', exportToExcel);
             document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
             document.getElementById('sessionSelect').addEventListener('change', async function() {
-                updateSessionStatus();
-                await loadSessionSettings();
-                loadPlayerDropdown();
-                updateCalculations();
+                try {
+                    updateSessionStatus();
+                    await loadSessionSettings();
+                    loadPlayerDropdown();
+                    updateCalculations();
+                } catch (error) {
+                    console.error('Error in session select change:', error);
+                }
             });
             
             // Check if player has already submitted when they select their name
