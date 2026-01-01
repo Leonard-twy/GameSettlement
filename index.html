@@ -805,8 +805,6 @@
                 </div>
 
                 <button class="btn btn-primary" id="submitBtn">Submit Chips</button>
-                <button class="btn btn-secondary" id="sessionStatusBtn">Check Session Status</button>
-                <button class="btn btn-success" id="closeSessionBtn">Close & Settle Session</button>
                 <button class="btn btn-secondary" id="viewHistoryBtn">View Player History</button>
                 <button class="btn btn-secondary" id="exportExcelBtn">Export to Excel</button>
                 <button class="btn btn-danger" id="clearDataBtn">Clear All Data</button>
@@ -1009,8 +1007,6 @@
             document.getElementById('settlementFactor').addEventListener('input', updateCalculations);
             document.getElementById('submitBtn').addEventListener('click', submitChips);
             document.getElementById('createSessionBtn').addEventListener('click', showCreateSessionModal);
-            document.getElementById('sessionStatusBtn').addEventListener('click', showSessionStatus);
-            document.getElementById('closeSessionBtn').addEventListener('click', closeSession);
             document.getElementById('viewHistoryBtn').addEventListener('click', viewHistory);
             document.getElementById('exportExcelBtn')?.addEventListener('click', exportToExcel);
             document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
@@ -1399,18 +1395,15 @@
             const session = document.getElementById('sessionSelect').value;
             const banner = document.getElementById('sessionStatusBanner');
             const submitBtn = document.getElementById('submitBtn');
-            const closeBtn = document.getElementById('closeSessionBtn');
             
             if (currentSessionData && currentSessionData.status === 'closed') {
                 banner.textContent = '🔒 Session Closed - No more submissions allowed';
                 banner.className = 'session-status closed';
                 submitBtn.disabled = true;
-                closeBtn.disabled = true;
             } else {
                 banner.textContent = '🟢 Session Open - Players can submit chips';
                 banner.className = 'session-status';
                 submitBtn.disabled = false;
-                closeBtn.disabled = false;
             }
         }
         
@@ -1596,10 +1589,17 @@
         function showUnbalanceWarning(unbalanceAmount) {
             const banner = document.getElementById('unbalanceWarning');
             const amountSpan = document.getElementById('unbalanceAmount');
+            const submitBtn = document.getElementById('submitBtn');
             
             if (banner && amountSpan) {
                 amountSpan.textContent = `$${Math.abs(unbalanceAmount).toFixed(2)}`;
                 banner.style.display = 'block';
+                
+                // Change button text to "Resubmit Chips"
+                if (submitBtn) {
+                    submitBtn.textContent = 'Resubmit Chips';
+                    submitBtn.style.background = '#f56565'; // Red color to draw attention
+                }
                 
                 // Scroll to make it visible
                 setTimeout(() => {
@@ -1610,8 +1610,16 @@
         
         function hideUnbalanceWarning() {
             const banner = document.getElementById('unbalanceWarning');
+            const submitBtn = document.getElementById('submitBtn');
+            
             if (banner) {
                 banner.style.display = 'none';
+            }
+            
+            // Reset button text to "Submit Chips"
+            if (submitBtn) {
+                submitBtn.textContent = 'Submit Chips';
+                submitBtn.style.background = ''; // Reset to default color
             }
         }
         
