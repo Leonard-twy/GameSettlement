@@ -797,6 +797,13 @@
                     </div>
                 </div>
 
+                <!-- Unbalance Warning Banner (hidden by default) -->
+                <div id="unbalanceWarning" style="display: none; margin: 20px 0; padding: 15px; background: #fed7d7; border: 2px solid #fc8181; border-radius: 8px; color: #742a2a;">
+                    <h3 style="margin: 0 0 10px 0; font-size: 16px;">⚠️ Settlements Don't Balance!</h3>
+                    <p style="margin: 0 0 5px 0; font-weight: 600;">Total discrepancy: <span id="unbalanceAmount" style="font-size: 18px; color: #c53030;">$0.00</span></p>
+                    <p style="margin: 0; font-size: 14px;">Please recount your chips carefully before resubmitting.</p>
+                </div>
+
                 <button class="btn btn-primary" id="submitBtn">Submit Chips</button>
                 <button class="btn btn-secondary" id="sessionStatusBtn">Check Session Status</button>
                 <button class="btn btn-success" id="closeSessionBtn">Close & Settle Session</button>
@@ -1289,6 +1296,9 @@
             if (result.success) {
                 const settlement = result.submission.settlementAmount;
                 
+                // Hide unbalance warning if it was showing
+                hideUnbalanceWarning();
+                
                 // Store that this player has submitted
                 sessionStorage.setItem(`submitted_${session}_${playerName}`, 'true');
                 
@@ -1582,6 +1592,29 @@
             showMessage(`⚠️ Fix ${playerName}'s chip count and resubmit. Current values are pre-filled.`, 'warning');
         }
         
+        // Show/hide unbalance warning banner
+        function showUnbalanceWarning(unbalanceAmount) {
+            const banner = document.getElementById('unbalanceWarning');
+            const amountSpan = document.getElementById('unbalanceAmount');
+            
+            if (banner && amountSpan) {
+                amountSpan.textContent = `$${Math.abs(unbalanceAmount).toFixed(2)}`;
+                banner.style.display = 'block';
+                
+                // Scroll to make it visible
+                setTimeout(() => {
+                    banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 500);
+            }
+        }
+        
+        function hideUnbalanceWarning() {
+            const banner = document.getElementById('unbalanceWarning');
+            if (banner) {
+                banner.style.display = 'none';
+            }
+        }
+        
         // Auto-refresh status page functionality
         let autoRefreshInterval = null;
         
@@ -1666,6 +1699,9 @@
                     // Still enable editing even if we can't pre-fill
                     enableEdit();
                 }
+                
+                // Show unbalance warning banner
+                showUnbalanceWarning(totalSettlement);
                 
                 // Show error message
                 showMessage(`⚠️ Settlements don't balance! Total: $${totalSettlement.toFixed(2)}. Please recount your chips and resubmit.`, 'error');
