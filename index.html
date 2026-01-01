@@ -970,6 +970,22 @@
         });
         
         async function initializeApp() {
+            // Suppress harmless browser extension errors
+            window.addEventListener('error', function(e) {
+                if (e.message && e.message.includes('message channel closed')) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+            
+            // Suppress unhandled promise rejections from browser internals
+            window.addEventListener('unhandledrejection', function(e) {
+                if (e.reason && e.reason.message && e.reason.message.includes('message channel closed')) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+            
             // Setup logout button
             document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
             
