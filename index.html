@@ -883,7 +883,7 @@
         const AUTH_KEY = 'pokerTrackerAuth';
         
         // GOOGLE SHEETS BACKEND URL - CONFIGURED!
-        const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby--cqPIHA43h_vRcCAOJ7us9nq84DykfL32PsN1je-blqa6-n3QDB86YnBKP7Ho9xZXQ/exec';
+        const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx03td729nBTuq_qv-SUl4_7eKysgOH1-1CTHsVjsTkVSZhtmDfva011aiUA8ZmsZ9tTQ/exec';
         
         // All available players - CUSTOMIZE THIS!
         const ALL_PLAYERS = ['Leonard', 'Sherlene', 'Vince', 'Zilin', 'Juvena', 'Jackson', 'Other Player 1', 'Other Player 2', 'Other Player 3', 'Other Player 4'];
@@ -1663,6 +1663,25 @@
             const sessionData = result.session;
             const submissions = result.submissions || [];
             
+            // Check if session was closed (by another player or organizer)
+            if (sessionData.status === 'closed') {
+                // Stop auto-refresh
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                
+                // Close any open modal
+                closeModal('sessionStatusModal');
+                
+                // Hide unbalance warning if showing
+                hideUnbalanceWarning();
+                
+                // Show settlement immediately
+                await displayClosedSessionSettlement(session);
+                return;
+            }
+            
             const expectedPlayers = sessionData.players;
             const submittedPlayers = submissions.map(s => s.playerName);
             const allSubmitted = expectedPlayers.every(p => submittedPlayers.includes(p));
@@ -1681,11 +1700,8 @@
                 // Auto-close session and show settlement
                 await autoCloseAndShowSettlement(session, submissions);
             } else if (allSubmitted && !isBalanced) {
-                // Stop auto-refresh
-                if (autoRefreshInterval) {
-                    clearInterval(autoRefreshInterval);
-                    autoRefreshInterval = null;
-                }
+                // DON'T stop auto-refresh - keep checking in case another player fixes it!
+                // We'll continue checking every 5 seconds for balance or session closure
                 
                 // Close status modal and return to submission page
                 closeModal('sessionStatusModal');
@@ -1718,6 +1734,8 @@
                 setTimeout(() => {
                     document.querySelector('.chip-entry')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 500);
+                
+                // Note: Auto-refresh continues! It will detect when session becomes balanced or closed
             } else {
                 // Still waiting - show status with countdown
                 displayWaitingStatus(sessionData, submissions);
@@ -1814,6 +1832,40 @@
                 showMessage('✅ Session closed successfully! Settlement instructions below.', 'success');
             } else {
                 showMessage(`Error closing session: ${result.error}`, 'error');
+            }
+        }
+        
+        async function displayClosedSessionSettlement(session) {
+            showMessage('Session already closed by another player. Loading settlement...', 'success');
+            
+            // Get the session data to retrieve settlements
+            const result = await callBackendAPI('getSessionStatus', {
+                sessionDate: session
+            });
+            
+            if (result.success && result.settlements) {
+                await loadSessions();
+                updateSessionStatus();
+                
+                // Generate and show settlement
+                generateSettlement(session, result.settlements);
+                
+                showMessage('✅ Settlement loaded successfully!', 'success');
+            } else {
+                // Fallback: manually calculate from submissions
+                if (result.submissions && result.submissions.length > 0) {
+                    const settlements = result.submissions.map(s => ({
+                        playerName: s.playerName,
+                        settlementAmount: s.settlementAmount
+                    }));
+                    
+                    await loadSessions();
+                    updateSessionStatus();
+                    generateSettlement(session, settlements);
+                    showMessage('✅ Settlement loaded successfully!', 'success');
+                } else {
+                    showMessage('Could not load settlement data', 'error');
+                }
             }
         }
         
