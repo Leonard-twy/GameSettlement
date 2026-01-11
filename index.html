@@ -681,15 +681,7 @@
                 <button type="submit" class="btn-login" id="loginBtn">Login</button>
             </form>
             <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; font-size: 13px; color: #4a5568;">
-                <strong>💡 Tip:</strong> Ask the game organizer for the password.
-                <hr>
-                <br><strong>Simple 5-step guide for players:</strong>
-                <br>1) Open app & login
-                <br>2) Select session & your name
-                <br>3) Count your chips and submit
-                <br>4) Wait for all players
-                <br>5) Wait for Settlement summary!
-                <br>6) Get paid!
+                <strong>💡 Tip:</strong> Ask the game organizer for the password. APP Version <code>v2.6</code>
             </div>
         </div>
     </div>
@@ -756,24 +748,24 @@
                     <label>Enter Your Chips</label>
                     <div class="chip-inputs">
                         <div class="chip-row">
-                            <span class="chip-label">$20</span>
-                            <input type="number" id="chip20" class="chip-input" value="5" min="0">
-                        </div>
-                        <div class="chip-row">
-                            <span class="chip-label">$10</span>
-                            <input type="number" id="chip10" class="chip-input" value="5" min="0">
-                        </div>
-                        <div class="chip-row">
-                            <span class="chip-label">$5</span>
-                            <input type="number" id="chip5" class="chip-input" value="10" min="0">
+                            <span class="chip-label">$1</span>
+                            <input type="number" id="chip1" class="chip-input" value="0" min="0">
                         </div>
                         <div class="chip-row">
                             <span class="chip-label">$2</span>
-                            <input type="number" id="chip2" class="chip-input" value="20" min="0">
+                            <input type="number" id="chip2" class="chip-input" value="0" min="0">
                         </div>
                         <div class="chip-row">
-                            <span class="chip-label">$1</span>
-                            <input type="number" id="chip1" class="chip-input" value="10" min="0">
+                            <span class="chip-label">$5</span>
+                            <input type="number" id="chip5" class="chip-input" value="0" min="0">
+                        </div>
+                        <div class="chip-row">
+                            <span class="chip-label">$10</span>
+                            <input type="number" id="chip10" class="chip-input" value="0" min="0">
+                        </div>
+                        <div class="chip-row">
+                            <span class="chip-label">$20</span>
+                            <input type="number" id="chip20" class="chip-input" value="0" min="0">
                         </div>
                     </div>
                 </div>
@@ -883,10 +875,10 @@
         const AUTH_KEY = 'pokerTrackerAuth';
         
         // GOOGLE SHEETS BACKEND URL - CONFIGURED!
-        const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby--cqPIHA43h_vRcCAOJ7us9nq84DykfL32PsN1je-blqa6-n3QDB86YnBKP7Ho9xZXQ/exec';
+        const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbx03td729nBTuq_qv-SUl4_7eKysgOH1-1CTHsVjsTkVSZhtmDfva011aiUA8ZmsZ9tTQ/exec';
         
         // All available players - CUSTOMIZE THIS!
-        const ALL_PLAYERS = ['Leonard', 'Sherlene', 'Vince', 'Zilin', 'Juvena', 'Jackson', 'Other Player 1', 'Other Player 2', 'Other Player 3', 'Other Player 4'];
+        const ALL_PLAYERS = ['Leonard', 'Sherlene', 'Vince', 'Zilin', 'Juvena',, 'Jackson', 'Other Player 1', 'Other Player 2', 'Other Player 3', 'Other_Player 4'];
         
         // App password - CHANGE THIS!
         const APP_PASSWORD = 'welovepoker';
@@ -1636,10 +1628,10 @@
             // Show the status immediately
             await checkStatusAndAct();
             
-            // Set up auto-refresh every 5 seconds
+            // Set up auto-refresh every 3 seconds (faster settlement delivery)
             autoRefreshInterval = setInterval(async () => {
                 await checkStatusAndAct();
-            }, 5000);
+            }, 3000);
         }
         
         async function checkStatusAndAct() {
@@ -1651,55 +1643,59 @@
                 return;
             }
             
-            const result = await callBackendAPI('getSessionStatus', {
-                sessionDate: session
-            });
-            
-            if (!result.success) {
-                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-                return;
-            }
-            
-            const sessionData = result.session;
-            const submissions = result.submissions || [];
-            
-            // Check if session was closed (by another player or organizer)
-            if (sessionData.status === 'closed') {
-                // Stop auto-refresh
-                if (autoRefreshInterval) {
-                    clearInterval(autoRefreshInterval);
-                    autoRefreshInterval = null;
+            try {
+                const result = await callBackendAPI('getSessionStatus', {
+                    sessionDate: session
+                });
+                
+                if (!result.success) {
+                    console.warn('getSessionStatus failed:', result.error);
+                    // Don't stop auto-refresh on temporary failures - keep trying
+                    return;
                 }
                 
-                // Close any open modal
-                closeModal('sessionStatusModal');
+                const sessionData = result.session;
+                const submissions = result.submissions || [];
                 
-                // Hide unbalance warning if showing
-                hideUnbalanceWarning();
-                
-                // Show settlement immediately
-                await displayClosedSessionSettlement(session);
-                return;
-            }
-            
-            const expectedPlayers = sessionData.players;
-            const submittedPlayers = submissions.map(s => s.playerName);
-            const allSubmitted = expectedPlayers.every(p => submittedPlayers.includes(p));
-            
-            const totalSettlement = submissions.reduce((sum, s) => sum + s.settlementAmount, 0);
-            const isBalanced = Math.abs(totalSettlement) < 0.01;
-            
-            // Decision logic
-            if (allSubmitted && isBalanced) {
-                // Stop auto-refresh
-                if (autoRefreshInterval) {
-                    clearInterval(autoRefreshInterval);
-                    autoRefreshInterval = null;
+                // Check if session was closed (by another player or organizer)
+                if (sessionData.status === 'closed') {
+                    // Stop auto-refresh
+                    if (autoRefreshInterval) {
+                        clearInterval(autoRefreshInterval);
+                        autoRefreshInterval = null;
+                    }
+                    
+                    // Close any open modal
+                    closeModal('sessionStatusModal');
+                    
+                    // Hide unbalance warning if showing
+                    hideUnbalanceWarning();
+                    
+                    // Show settlement immediately
+                    console.log('Session closed detected, showing settlement');
+                    await displayClosedSessionSettlement(session);
+                    return;
                 }
                 
-                // Auto-close session and show settlement
-                await autoCloseAndShowSettlement(session, submissions);
-            } else if (allSubmitted && !isBalanced) {
+                const expectedPlayers = sessionData.players;
+                const submittedPlayers = submissions.map(s => s.playerName);
+                const allSubmitted = expectedPlayers.every(p => submittedPlayers.includes(p));
+                
+                const totalSettlement = submissions.reduce((sum, s) => sum + s.settlementAmount, 0);
+                const isBalanced = Math.abs(totalSettlement) < 0.01;
+                
+                // Decision logic
+                if (allSubmitted && isBalanced) {
+                    // Stop auto-refresh
+                    if (autoRefreshInterval) {
+                        clearInterval(autoRefreshInterval);
+                        autoRefreshInterval = null;
+                    }
+                    
+                    // Auto-close session and show settlement
+                    console.log('All submitted and balanced, closing session');
+                    await autoCloseAndShowSettlement(session, submissions);
+                } else if (allSubmitted && !isBalanced) {
                 // DON'T stop auto-refresh - keep checking in case another player fixes it!
                 // We'll continue checking every 5 seconds for balance or session closure
                 
@@ -1751,6 +1747,11 @@
             } else {
                 // Still waiting - show status with countdown
                 displayWaitingStatus(sessionData, submissions);
+            }
+            } catch (error) {
+                console.error('Error in checkStatusAndAct:', error);
+                // Don't stop auto-refresh on errors - keep trying
+                // This ensures temporary network issues don't break the settlement display
             }
         }
         
@@ -1827,23 +1828,48 @@
         }
         
         async function autoCloseAndShowSettlement(session, submissions) {
+            // Prevent multiple simultaneous close attempts
+            if (window.closingSession) {
+                console.log('Close already in progress, skipping duplicate attempt');
+                return;
+            }
+            
+            window.closingSession = true;
             showMessage('All players submitted and balanced! Closing session...', 'success');
             
-            // Close the session automatically
-            const result = await callBackendAPI('closeSession', {
-                sessionDate: session
-            });
-            
-            if (result.success) {
-                await loadSessions();
-                updateSessionStatus();
+            try {
+                // Close the session automatically
+                const result = await callBackendAPI('closeSession', {
+                    sessionDate: session
+                });
                 
-                // Generate and show settlement
-                generateSettlement(session, result.settlements);
-                
-                showMessage('✅ Session closed successfully! Settlement instructions below.', 'success');
-            } else {
-                showMessage(`Error closing session: ${result.error}`, 'error');
+                if (result.success) {
+                    await loadSessions();
+                    updateSessionStatus();
+                    
+                    // Generate and show settlement
+                    generateSettlement(session, result.settlements);
+                    
+                    showMessage('✅ Session closed successfully! Settlement instructions below.', 'success');
+                } else {
+                    // If session is already closed, that's OK - just show settlement
+                    if (result.error && result.error.includes('already closed')) {
+                        console.log('Session already closed by another player, loading settlement...');
+                        await displayClosedSessionSettlement(session);
+                    } else {
+                        showMessage(`Error closing session: ${result.error}`, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('Error in autoCloseAndShowSettlement:', error);
+                // Try to load settlement anyway
+                try {
+                    await displayClosedSessionSettlement(session);
+                } catch (fallbackError) {
+                    showMessage('Error loading settlement. Please refresh the page.', 'error');
+                }
+            } finally {
+                window.closingSession = false;
             }
         }
         
